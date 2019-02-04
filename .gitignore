@@ -1,1 +1,7 @@
 data/
+*.npy
+*.zip
+*.hdf5
+*.pyc
+__pycache__
+.ropeproject
