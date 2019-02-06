@@ -16,5 +16,5 @@ if [ "${parse_log}" != "no" ] ; then
   fp="data/log/$(ls -tr ./data/log | tail -n 1)"
   img_dir="data/analysis/$(basename "$fp")"
   mkdir -p $img_dir
-  python parselog.py $fp $img_dir
+  python parselog.py $img_dir $fp
 fi
