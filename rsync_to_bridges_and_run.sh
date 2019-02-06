@@ -16,6 +16,7 @@ set -u
 set -x
 
 bridges_user=${1:-agaudio}
+interactive=${1:-yes}  # if yes, limited to 8 hours.
 
 
 # cd into current directory where the script is
@@ -24,6 +25,7 @@ cd $(readlink -f "$0")
 # rsync latest code over
 rsync -ave ssh ./ $bridges_user@data.bridges.psc.edu:/pylon5/ci4s8dp/$bridges_user/medal_improvements
 
+if [ "${interactive}" = "yes" ] ; then
 # # set up to run interactively on bridges (via a socks proxy running tmux)
 # # within bridges, load the gpu interactively and run code inside a tmux session
 # # (so can consult nvidia-smi or do other things on the machine while it runs)
@@ -37,3 +39,13 @@ interact -gpu -t 8:00:00
 tmux new-session "python Script.py 2>&1 | tee -a data/log/`date +%Y%m%dT%H%M%S`.log"
 exit
 EOF
+
+else  # run via sbatch
+
+ssh $bridges_user@bridges.psc.edu <<EOF
+cd \$SCRATCH/medal_improvements/data/log
+fp="`date +%Y%m%dT%H%M%S`.log"
+sbatch -o \$fp -e \$fp ../../medal_large_job.sbatch
+EOF
+
+fi
