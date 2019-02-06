@@ -15,8 +15,8 @@
 set -u
 set -x
 
-bridges_user=${1:-agaudio}
-interactive=${1:-yes}  # if yes, limited to 8 hours.
+bridges_user=${1}
+interactive=${2:-yes}  # if yes, limited to 8 hours.
 
 
 # cd into current directory where the script is
