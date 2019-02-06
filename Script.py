@@ -26,7 +26,7 @@ from keras import backend as K
 
 # Control Parameters
 
-Method_type = 0                                 # 0:Baseline accuracy computation (Entire dataset)
+Method_type = 2                                 # 0:Baseline accuracy computation (Entire dataset)
                                                 # 1: Random sampling  2:Max Entropy measure  3:Our method
 Initial_dataset_size = 100                       # Initial dataset size to sample using ORB descriptors
 No_of_images_to_sample = 20                      # No of images to sample each AL iteration, common for all method types
@@ -39,7 +39,7 @@ Create_initial_dataset = True                  # True:  Performs ORB descriptor 
 Accuracy_array_name = 'testacc_Method%s.npy' % Method_type  # Numpy array storage name. This records the best test accuracy acheived during each AL iteration.
                                                 # Change name for different method_type
 AUC_array_name = 'AUC_Method%s.npy' % Method_type  # Stores the AUC score on test set for each AL iteration.Change name for different method_type
-Load_descriptors = True                        # Loads precomputed descriptors for all dataset images.It is useful only when Create_initial_dataset==True
+Load_descriptors = False                        # Loads precomputed descriptors for all dataset images.It is useful only when Create_initial_dataset==True
 
 # Network Training parameters
 Epochs = 300                                # no of epochs to train model for each AL iteration
