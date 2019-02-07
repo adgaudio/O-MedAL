@@ -90,9 +90,6 @@ def parse_log_files(fps_in):
             _tmp = df.query('al_iteration == @i')
             stop_idx = _tmp['epoch'].diff().idxmin() - 1
             df.drop(df.loc[start_idx:stop_idx].index, inplace=True)
-    tmp = df.query('perf').groupby(['al_iteration'])['epoch'].count()
-    if tmp.shape[0] > 1:
-        assert 0 == tmp.var(), "bug trying to ignore redundant data"
 
     # hack: ignore end of log data if it's incomplete
     if df['al_iteration'].unique().shape[0] > 1:
@@ -101,6 +98,11 @@ def parse_log_files(fps_in):
             print("--> Dropping last al_iteration, since it was incomplete")
             _last_iter = df['al_iteration'].max()
             df.drop(df[df['al_iteration'] == _last_iter].index, inplace=True)
+
+    # sanity check
+    tmp = df.query('perf').groupby(['al_iteration'])['epoch'].count()
+    if tmp.shape[0] > 1:
+        assert 0 == tmp.var(), "bug trying to ignore redundant data"
 
     # sanity check data:
     assert (df['val_acc'].isnull() == df['val_loss'].isnull()).all()
@@ -190,6 +192,10 @@ def plot_heatmap_at_al_iter(df, al_iteration):
 
 
 def quantile_perf_across_al_iterations(df):
+    # TODO: these plots can be deceptive since at each AL iteration, there are more
+    # iterations and therefore the probability of a higher .9 and a lower .1
+    # increases as AL iteration increases.
+    # maybe can normalize for this probability?
     al_perf = df.groupby('al_iteration')[
         ['val_acc', 'val_loss', 'train_acc', 'train_loss']]\
         .quantile([0, .1, .25, .5, .75, .9, 1]).unstack()
@@ -218,6 +224,7 @@ if __name__ == "__main__":
     print("Saving images to directory:  %s" % img_dir)
 
     df = parse_log_files(fps_in)
+    df = df.query('epoch < 50')
 
     last_al_iter = df['al_iteration'].max()
     selected_al_iters = np.unique(np.linspace(0, last_al_iter, 6, dtype='int'))
