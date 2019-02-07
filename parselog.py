@@ -75,6 +75,33 @@ def parse_log_files(fps_in):
     if df['al_iteration'].isnull().all():
         df['al_iteration'] = df['al_iteration'].fillna(0)
 
+    # sanity check
+    # hack to ignore redundant log data when model stops and is resumed
+    tmp = df.query('perf').groupby(['al_iteration'])['epoch'].count()
+    bad_i = tmp.index[tmp > tmp.mode()[0]]
+    if not bad_i.empty:
+        print("--> Problem at al_iteration(s):  %s.  "
+              "Found redundancy in log data (from re-running model and "
+              "restarting an AL iteration). Ignoring earlier part of the "
+              "redundant data, since it wasn't used to continue training."
+              % bad_i.values)
+        for i in bad_i.values:
+            start_idx = df.query('al_iteration == @i').index[0]
+            _tmp = df.query('al_iteration == @i')
+            stop_idx = _tmp['epoch'].diff().idxmin() - 1
+            df.drop(df.loc[start_idx:stop_idx].index, inplace=True)
+    tmp = df.query('perf').groupby(['al_iteration'])['epoch'].count()
+    if tmp.shape[0] > 1:
+        assert 0 == tmp.var(), "bug trying to ignore redundant data"
+
+    # hack: ignore end of log data if it's incomplete
+    if df['al_iteration'].unique().shape[0] > 1:
+        if (df.groupby('al_iteration')['epoch']
+                .count().diff().tail(1) < 1).all():
+            print("--> Dropping last al_iteration, since it was incomplete")
+            _last_iter = df['al_iteration'].max()
+            df.drop(df[df['al_iteration'] == _last_iter].index, inplace=True)
+
     # sanity check data:
     assert (df['val_acc'].isnull() == df['val_loss'].isnull()).all()
     each_epoch_of_an_al_iteration_is_completed = \
@@ -93,24 +120,38 @@ def plot_learning_curve_over_al_iterations(
     f, (ax1, ax2) = plt.subplots(2, 1)
 
     cols = ['train_%s' % col_suffix, 'val_%s' % col_suffix]
-    data = df.query('perf').query('al_iteration in @selected_al_iters')
+    #  data = df.query('perf').query('al_iteration in @selected_al_iters')
+
+    def _plot_learning_curve(*args, **kws):
+        data = kws.pop('data')
+        data[cols].plot(style='-', linewidth=.5, use_index=False, ax=plt.gca())
+
+    if last_al_iteration > 0:
+        f = sns.FacetGrid(
+            df.query('perf'),
+            col='al_iteration', col_wrap=np.round(np.sqrt(last_al_iteration)))\
+            .map_dataframe(_plot_learning_curve).add_legend().fig
+    else:
+        f = df.query('perf').query('al_iteration == @last_al_iteration')[cols]\
+            .plot(title="for AL Iteration %s" % (last_al_iteration+1)).figure
 
     # plot train and val  loss|acc for every epoch of given al iteration.
     # only show some al iterations
-    data[cols].plot(
-            title="for %s of %s AL iterations" % (
-                len(selected_al_iters), last_al_iteration+1),
-            style='-', linewidth=.5, use_index=False, ax=ax1)
-    ax1.vlines(
-        np.bincount(data['al_iteration'].values).cumsum(),
-        *ax1.get_ylim(), linestyle='--', alpha=.5)
+    #  data[cols].plot(
+    #          title="for %s of %s AL iterations" % (
+    #              len(selected_al_iters), last_al_iteration+1),
+    #          style='-', linewidth=.5, use_index=False, ax=ax1)
+    #  ax1.vlines(
+    #      np.bincount(data['al_iteration'].values).cumsum(),
+    #      *ax1.get_ylim(), linestyle='--', alpha=.5)
 
-    # plot only the last al iteration
-    df.query('perf').query('al_iteration == @last_al_iteration')[cols].plot(
-        title="for AL Iteration %s" % (last_al_iteration+1), ax=ax2)
+    #  # plot only the last al iteration
+    #  df.query('perf').query('al_iteration == @last_al_iteration')[cols].plot(
+    #      title="for AL Iteration %s" % (last_al_iteration+1), ax=ax2)
 
     f.suptitle("%s vs Epoch" % col_suffix.capitalize())
-    f.tight_layout(rect=[0, 0.03, 1, 0.95])
+    f.subplots_adjust(top=.9)
+    #  f.tight_layout(rect=[0, 0.03, 1, 0.95])
     f.savefig(join(img_dir, "%s_vs_epoch.png" % col_suffix))
 
 
@@ -148,6 +189,26 @@ def plot_heatmap_at_al_iter(df, al_iteration):
                    "iteration_vs_epoch_al_iter_%s.png" % (al_iteration+1)))
 
 
+def quantile_perf_across_al_iterations(df):
+    al_perf = df.groupby('al_iteration')[
+        ['val_acc', 'val_loss', 'train_acc', 'train_loss']]\
+        .quantile([0, .1, .25, .5, .75, .9, 1]).unstack()
+    al_perf.columns.names = ('variable', 'quantile')
+    for cols, name in [(['train_loss', 'val_loss'], "Loss"),
+                       (['train_acc', 'val_acc'], "Accuracy")]:
+        f, axs = plt.subplots(3, 2)
+        for quantile, axss in zip([.1, .5, .9], axs):
+            al_perf[(cols[0], quantile)].plot(
+                title="Quantile: %s, %s" % (quantile, cols[0]), ax=axss[0])
+            al_perf[(cols[1], quantile)].plot(
+                title="Quantile: %s, %s" % (quantile, cols[1]), ax=axss[1])
+
+        f.suptitle("Quantile %s of model across AL iterations" % name)
+        f.tight_layout(rect=[0, 0.03, 1, 0.95])
+        f.savefig(join(
+            img_dir, "quantile_%s_across_al_iter.png" % name.lower()))
+
+
 if __name__ == "__main__":
     img_dir = sys.argv[1]
     fps_in = sys.argv[2:]
@@ -175,17 +236,5 @@ if __name__ == "__main__":
     plot_heatmap_at_al_iter(df, last_al_iter)
 
     # AL performance over time
-    al_perf = df.groupby('al_iteration')[
-        ['val_acc', 'val_loss', 'train_acc', 'train_loss']]\
-        .quantile([0, .1, .25, .5, .75, .9, 1]).unstack()
-    al_perf.columns.names = ('variable', 'quantile')
-    for cols, name in [(['train_loss', 'val_loss'], "Loss"),
-                       (['train_acc', 'val_acc'], "Accuracy")]:
-        f, axs = plt.subplots(3, 1)
-        for quantile, ax in zip([.1, .5, .9], axs):
-            al_perf.xs(quantile, axis=1, level='quantile')[cols].plot(
-                    title=("Quantile: %s" % quantile), legend=True, ax=ax)
-        f.suptitle("Quantile %s of model across AL iterations" % name)
-        f.tight_layout(rect=[0, 0.03, 1, 0.95])
-        f.savefig(join(
-            img_dir, "quantile_%s_across_al_iter.png" % name.lower()))
+    if last_al_iter > 0:
+        quantile_perf_across_al_iterations(df)
