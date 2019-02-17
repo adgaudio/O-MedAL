@@ -51,7 +51,7 @@ class Messidor(GlobImageDir):
             ]),
             getitem_transform=lambda x: (
                 x['image'],
-                torch.tensor(int(x['Retinopathy grade'] != 0)))
+                torch.tensor([float(x['Retinopathy grade'] != 0)]))
         )
     """
     def __init__(self, csv_glob_expr, img_glob_expr,
@@ -79,9 +79,9 @@ class Messidor(GlobImageDir):
         """
         return self.__getitem__(index, False)
 
-    def random_stratified_split(self, train_frac, random_state=None):
+    def train_test_split(self, train_frac, random_state=None):
         """
-        Train test split and stratify across the Opthalmologic departments that
+        Train test split and STRATIFY across the Opthalmologic departments that
         the images came from because the dimensions of images from each
         department are different.
 
