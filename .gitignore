@@ -5,3 +5,4 @@ data/
 *.pyc
 __pycache__
 .ropeproject
+*.egg-info/
