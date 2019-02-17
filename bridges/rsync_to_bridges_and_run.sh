@@ -16,14 +16,16 @@ set -u
 set -x
 
 bridges_user=${1}
-interactive=${2:-yes}  # if yes, limited to 8 hours.
+interactive=${2}  # yes|some/filepath.sbatch  # if yes, limited to 8 hours.
 
 
-# cd into current directory where the script is
-cd $(readlink -f "$0")
+# cd into parent directory of the script is
+cd "$(dirname "$(dirname "$(readlink -f "$0")")")"
+pwd
 
 # rsync latest code over
-rsync -ave ssh ./ $bridges_user@data.bridges.psc.edu:/pylon5/ci4s8dp/$bridges_user/medal_improvements
+rsync -ave ssh --exclude ./data --exclude ./new/data \
+  ./ $bridges_user@data.bridges.psc.edu:/pylon5/ci4s8dp/$bridges_user/medal_improvements
 
 if [ "${interactive}" = "yes" ] ; then
 # # set up to run interactively on bridges (via a socks proxy running tmux)
@@ -44,8 +46,8 @@ else  # run via sbatch
 
 ssh $bridges_user@bridges.psc.edu <<EOF
 cd \$SCRATCH/medal_improvements/data/log
-fp="`date +%Y%m%dT%H%M%S`.log"
-sbatch -o \$fp -e \$fp ../../medal_large_job.sbatch
+fp="$(basename "$interactive")-`date +%Y%m%dT%H%M%S`.log"
+sbatch -o \$fp -e \$fp ../../$interactive
 EOF
 
 fi
