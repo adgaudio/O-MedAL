@@ -1,0 +1,9 @@
+scikit-learn
+numpy
+scipy
+scikit-image
+Pillow
+pandas
+torch
+torchvision
+argparse
