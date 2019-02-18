@@ -31,7 +31,7 @@ class MedALInceptionV3(nn.Module):
             # + l2 regularizer keras: x = Dense(512,kernel_regularizer=l2(0.000001))(x)
             nn.BatchNorm1d(1024),
             nn.ReLU(),
-            nn.Dropout(0.5),
+            #  nn.Dropout(0.5),
             nn.Linear(1024, 512),
             nn.BatchNorm1d(512),
             nn.ReLU(),

@@ -51,7 +51,7 @@ class Messidor(GlobImageDir):
             ]),
             getitem_transform=lambda x: (
                 x['image'],
-                torch.tensor([float(x['Retinopathy grade'] != 0)]))
+                torch.tensor([int(x['Retinopathy grade'] != 0)]))
         )
     """
     def __init__(self, csv_glob_expr, img_glob_expr,

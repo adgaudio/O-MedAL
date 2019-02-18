@@ -7,6 +7,7 @@ import torch
 import torch.optim
 import torch.utils.data as TD
 import torchvision.transforms as tvt
+import torchvision as tv
 
 from . import datasets
 from . import models
@@ -42,7 +43,8 @@ def load_checkpoint(config):
     model.set_layers_trainable()
     optimizer = torch.optim.Adam(
         model.parameters(), lr=config.learning_rate,
-        weight_decay=1e-7, betas=(.95, .999))
+        weight_decay=config.weight_decay, betas=(.95, .999))
+    model.to(config.device)
 
     read_fp = config.checkpoint_fp_template.format(
         run_id=config.run_id, epoch='*')
@@ -59,43 +61,52 @@ def load_checkpoint(config):
     return model, optimizer, epoch
 
 
-def train_one_epoch(config, train_loader, model, optimizer):
+def train_one_epoch(epoch, config, train_loader, model, optimizer):
+    #  print('train one epoch')  # TODO remove
     model.train()
     train_loss, train_correct, N = 0, 0, 0
     for batch_idx, (X, y) in enumerate(train_loader):
+        if X.shape[0] != config.batch_size:
+            #  print("Skipping end of batch", X.shape)
+            continue
         X, y = X.to(config.device), y.to(config.device)
         optimizer.zero_grad()
         yhat = model(X)
-        loss = model.lossfn(yhat, y)
+        loss = model.lossfn(yhat, y.float())
         loss.backward()
         optimizer.step()
 
-        # print output if batch_idx % config.log_interval == 0
-        batch_size = X.shape[0]
-        train_loss += loss * batch_size
-        train_correct += yhat.eq(y.view_as(yhat)).sum().item()
-        N += batch_size
+        with torch.no_grad():
+            batch_size = X.shape[0]
+            _loss = loss.item() * batch_size
+            train_loss += _loss
+            _correct = y.int().eq((yhat.view_as(y) >.5).int()).sum().item()
+            train_correct += _correct
+            N += batch_size
 
-        if batch_idx % 10 == 0:
-            print('-->', 'epoch:', epoch,
-                    'batch_idx', batch_idx, 'loss:', loss.item())
-        break  # TODO remove
+            # print output if batch_idx % config.log_interval == 0
+            if batch_idx % 10 == 0:
+                print('-->', 'epoch:', epoch,
+                    '\tbatch_idx', batch_idx,
+                    '\ttrain_loss:', train_loss/N,
+                    '\ttrain_acc', train_correct / N)
     return train_loss/N, train_correct/N
 
 
 def train(config, train_loader, val_loader, model, optimizer, epoch):
     for epoch in range(epoch, config.epochs + 1):
         train_loss, train_acc = train_one_epoch(
-            config, train_loader, model, optimizer)
-        save_checkpoint(config, model, optimizer, epoch)
+            epoch, config, train_loader, model, optimizer)
+        #  save_checkpoint(config, model, optimizer, epoch)
         val_loss, val_acc = test(config, val_loader, model)
         print(
             "epoch", epoch, "train_loss", train_loss, "\tval_loss", val_loss,
-            "\ttrain_acc", train_correct/N, "\tval_acc", val_acc)
+            "\ttrain_acc", train_acc, "\tval_acc", val_acc)
 
 
 def test(config, val_loader, model):
     """Return avg loss and accuracy on the validation data"""
+    #  print('test on validation set')  # TODO remove
     model.eval()
     totloss = 0
     correct = 0
@@ -105,11 +116,19 @@ def test(config, val_loader, model):
             batch_size = X.shape[0]
             X, y = X.to(config.device), y.to(config.device)
             yhat = model(X)
-            totloss += model.lossfn(yhat, y) * batch_size
-            correct += yhat.eq(y.view_as(yhat)).sum().item()
+            totloss += (model.lossfn(yhat, y.float()) * batch_size).item()
+            correct += y.int().eq((yhat.view_as(y) >.5).int()).sum().item()
             N += batch_size
-            break  # TODO remove
     return totloss/N, correct/N
+
+
+def main(config):
+    # define the dataset
+    print('\n'.join(str((k, v)) for k, v in config.__dict__.items()
+                    if not k.startswith('__')))
+    train_loader, val_loader = get_data_loaders(config)
+    model, optimizer, epoch = load_checkpoint(config)
+    train(config, train_loader, val_loader, model, optimizer, epoch)
 
 
 if __name__ == "__main__":
@@ -118,13 +137,14 @@ if __name__ == "__main__":
     class config:
         run_id = "baseline_inception3"
         model_class = models.MedALInceptionV3
-        epochs = 300
-        #  batch_size = 32
-        batch_size = 2  # TODO
-        learning_rate = 2e-4  # TODO
-        data_loader_num_workers = max(1, mp.cpu_count() - 3)
-        train_frac = .8
-        device = torch.device('cpu')
+        epochs = 100
+        batch_size = 16
+        #  batch_size = 64  # TODO
+        learning_rate = 1e-3  # TODO
+        data_loader_num_workers = max(1, mp.cpu_count() - 2)
+        train_frac = .3  # TODO
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        weight_decay = 0.01
 
         data_loader_random_state = 0  # np.random.RandomState(0)
         model_dir = join(DATA_DIR, "torch/models")
@@ -144,16 +164,6 @@ if __name__ == "__main__":
         )
 
         def __repr__(self):
-            return "config:%s" % configuration_id
+            return "config:%s" % self.run_id
 
-    # define the dataset
-    print('\n'.join(str((k, v)) for k, v in config.__dict__.items()
-                        if not k.startswith('__')))
-
-    train_loader, val_loader = get_data_loaders(config)
-    model, optimizer, epoch = load_checkpoint(config)
-    train(config, train_loader, val_loader, model, optimizer, epoch)
-
-    # TODO:
-    # test function
-    # save results
+    main(config)
