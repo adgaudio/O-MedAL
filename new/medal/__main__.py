@@ -167,7 +167,7 @@ if __name__ == "__main__":
     DATA_DIR = join(dirname(dirname(abspath(__file__))), 'data')
 
     class config:
-        run_id = "baseline_inception3"
+        run_id = "baseline_inception3_trainfrac.8"
         model_class = models.MedALInceptionV3
         epochs = 100
         batch_size = 16
