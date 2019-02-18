@@ -16,7 +16,7 @@ set -u
 set -x
 
 bridges_user=${1}
-interactive=${2}  # yes|some/filepath.sbatch  # if yes, limited to 8 hours.
+mode=${2:-donothing}  # interactive|nobridges|some/filepath.sbatch  # if interactive, limited to 8 hours.
 
 
 # cd into parent directory of the script is
@@ -24,10 +24,10 @@ cd "$(dirname "$(dirname "$(readlink -f "$0")")")"
 pwd
 
 # rsync latest code over
-rsync -ave ssh --exclude ./data --exclude ./new/data \
+rsync -ave ssh --exclude __pycache__ --exclude ./data --exclude ./new/data \
   ./ $bridges_user@data.bridges.psc.edu:/pylon5/ci4s8dp/$bridges_user/medal_improvements
 
-if [ "${interactive}" = "yes" ] ; then
+if [ "${mode}" = "interactive" ] ; then
 # # set up to run interactively on bridges (via a socks proxy running tmux)
 # # within bridges, load the gpu interactively and run code inside a tmux session
 # # (so can consult nvidia-smi or do other things on the machine while it runs)
@@ -42,12 +42,17 @@ tmux new-session "python Script.py 2>&1 | tee -a data/log/`date +%Y%m%dT%H%M%S`.
 exit
 EOF
 
-else  # run via sbatch
+elif [ -e "$mode" ] ; then # run via sbatch
+  echo Sbatch file should exist locally and remotely. Running it:
+  echo $mode
 
 ssh $bridges_user@bridges.psc.edu <<EOF
 cd \$SCRATCH/medal_improvements/data/log
-fp="$(basename "$interactive")-`date +%Y%m%dT%H%M%S`.log"
-sbatch -o \$fp -e \$fp ../../$interactive
+fp="$(basename "$mode")-`date +%Y%m%dT%H%M%S`.log"
+sbatch -o \$fp -e \$fp ../../$mode
 EOF
 
+else
+  echo Do nothing further
 fi
+
