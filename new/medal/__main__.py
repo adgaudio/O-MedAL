@@ -41,9 +41,20 @@ def save_checkpoint(config, model, optimizer, epoch):
 def load_checkpoint(config):
     model = config.model_class(config)
     model.set_layers_trainable()
-    optimizer = torch.optim.Adam(
-        model.parameters(), lr=config.learning_rate,
-        weight_decay=config.weight_decay, betas=(.95, .999))
+    optimizer = torch.optim.SGD(
+        model.parameters(), lr=config.learning_rate, momentum=0.5,
+        weight_decay=config.weight_decay)
+
+    #  optimizer = torch.optim.Adam(
+        #  model.parameters(), lr=config.learning_rate,
+        #  weight_decay=config.weight_decay, betas=(.95, .999))
+    if config.device == 'cuda' and torch.cuda.device_count() > 1:
+        print("Using", torch.cuda.device_count(), "GPUs")
+        # dim = 0 [30, xxx] -> [10, ...], [10, ...], [10, ...] on 3 GPUs
+        model_ = torch.nn.DataParallel(model)
+        model_.lossfn = model.lossfn
+        model = model_
+
     model.to(config.device)
 
     read_fp = config.checkpoint_fp_template.format(
@@ -87,9 +98,9 @@ def train_one_epoch(epoch, config, train_loader, model, optimizer):
             # print output if batch_idx % config.log_interval == 0
             if batch_idx % 10 == 0:
                 print('-->', 'epoch:', epoch,
-                    '\tbatch_idx', batch_idx,
-                    '\ttrain_loss:', train_loss/N,
-                    '\ttrain_acc', train_correct / N)
+                    'batch_idx', batch_idx,
+                    'train_loss:', train_loss/N,
+                    'train_acc', train_correct / N)
     return train_loss/N, train_correct/N
 
 
@@ -97,16 +108,15 @@ def train(config, train_loader, val_loader, model, optimizer, epoch):
     for epoch in range(epoch, config.epochs + 1):
         train_loss, train_acc = train_one_epoch(
             epoch, config, train_loader, model, optimizer)
-        #  save_checkpoint(config, model, optimizer, epoch)
+        save_checkpoint(config, model, optimizer, epoch)
         val_loss, val_acc = test(config, val_loader, model)
         print(
-            "epoch", epoch, "train_loss", train_loss, "\tval_loss", val_loss,
-            "\ttrain_acc", train_acc, "\tval_acc", val_acc)
+            "epoch", epoch, "train_loss", train_loss, "val_loss", val_loss,
+            "train_acc", train_acc, "val_acc", val_acc)
 
 
 def test(config, val_loader, model):
     """Return avg loss and accuracy on the validation data"""
-    #  print('test on validation set')  # TODO remove
     model.eval()
     totloss = 0
     correct = 0
@@ -155,7 +165,9 @@ if __name__ == "__main__":
             join(DATA_DIR, "messidor/*.csv"),
             join(DATA_DIR, "messidor/**/*.tif"),
             img_transform=tvt.Compose([
+                tvt.CenterCrop((800, 800)),
                 tvt.RandomCrop((512, 512)),
+                tvt.Resize((256, 256), 3),
                 tvt.ToTensor(),
             ]),
             getitem_transform=lambda x: (

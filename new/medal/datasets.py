@@ -115,3 +115,13 @@ class Messidor(GlobImageDir):
         df['Image name'] = df['fp'].apply(os.path.basename)
         df.set_index('Image name')
         return df
+
+
+if __name__ == "__main__":
+    messidor = Messidor(
+        "./data/messidor/*.csv",
+        "./data/messidor/**/*.tif",
+        img_transform=lambda x: x.getdata()
+    )
+    z = messidor[0]
+    print(np.array(z['image']).shape)
