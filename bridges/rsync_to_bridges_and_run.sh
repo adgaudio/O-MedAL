@@ -31,14 +31,17 @@ if [ "${mode}" = "interactive" ] ; then
 # # set up to run interactively on bridges (via a socks proxy running tmux)
 # # within bridges, load the gpu interactively and run code inside a tmux session
 # # (so can consult nvidia-smi or do other things on the machine while it runs)
-TERM=screen ssh -tt -A socksjump 'tmux new-session -A -s 0 \; new-window -t 0:. -n MedAL -a ssh  '"$bridges_user"'@bridges.psc.edu' <<EOF
+TERM=screen ssh -tt -A jump 'tmux new-session -A -s 0 \; new-window -t 0:. -n MedAL -a ssh  '"$bridges_user"'@bridges.psc.edu' <<EOF
 module load AI/anaconda3-5.1.0_gpu.2018-08 
 source activate \$AI_ENV
 cd \$SCRATCH/medal_improvements
+source ./data/.bridges_env/bin/activate
 pwd
-rm Model_save.hdf5
-interact -gpu -t 8:00:00
-tmux new-session "python Script.py 2>&1 | tee -a data/log/`date +%Y%m%dT%H%M%S`.log"
+
+# rm Model_save.hdf5
+interact -p GPU-small --gres=gpu:p100:2 -t 00:10:00 -N 1 -n 28
+# tmux new-session "python Script.py 2>&1 | tee -a data/log/`date +%Y%m%dT%H%M%S`.log"
+tmux new-session "python -m medal 2>&1 | tee -a data/log/`date +%Y%m%dT%H%M%S`.log"
 exit
 EOF
 

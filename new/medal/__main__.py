@@ -21,9 +21,31 @@ def get_data_loaders(config):
             config.dataset,
             batch_size=config.batch_size,
             sampler=TD.SubsetRandomSampler(idxs),
-            pin_memory=False, num_workers=config.data_loader_num_workers
+            pin_memory=True, num_workers=config.data_loader_num_workers
         )
         yield loader
+
+
+#  def MNIST_get_data_loaders(config):
+#      """For debugging MedAL code, used the MNIST dataset"""
+#      trans = tvt.Compose([
+#          tvt.Grayscale(3), tvt.ToTensor(), tvt.Normalize((0.5,), (1.0,)),
+#      ])
+#      ttrans = tvt.Compose([
+#          lambda x: x.reshape(1, 1) > 5
+#      ])
+#      train_set = tv.datasets.MNIST(
+#          root=join(DATA_DIR, "MNIST"),
+#          train=True, transform=trans, target_transform=ttrans, download=True)
+#      test_set = tv.datasets.MNIST(
+#          root=join(DATA_DIR, "MNIST"),
+#          train=False, transform=trans, target_transform=ttrans, download=True)
+
+#      for x in train_set, test_set:
+#          yield torch.utils.data.DataLoader(
+#                          dataset=train_set,
+#                          batch_size=config.batch_size,
+#                          shuffle=True)
 
 
 def save_checkpoint(config, model, optimizer, epoch):
@@ -41,13 +63,14 @@ def save_checkpoint(config, model, optimizer, epoch):
 def load_checkpoint(config):
     model = config.model_class(config)
     model.set_layers_trainable()
+
     optimizer = torch.optim.SGD(
         model.parameters(), lr=config.learning_rate, momentum=0.5,
-        weight_decay=config.weight_decay)
-
+        weight_decay=config.weight_decay, nesterov=True)
     #  optimizer = torch.optim.Adam(
-        #  model.parameters(), lr=config.learning_rate,
+        #  model.parameters(), lr=config.learning_rate, eps=.1,
         #  weight_decay=config.weight_decay, betas=(.95, .999))
+
     if config.device == 'cuda' and torch.cuda.device_count() > 1:
         print("Using", torch.cuda.device_count(), "GPUs")
         # dim = 0 [30, xxx] -> [10, ...], [10, ...], [10, ...] on 3 GPUs
@@ -73,7 +96,6 @@ def load_checkpoint(config):
 
 
 def train_one_epoch(epoch, config, train_loader, model, optimizer):
-    #  print('train one epoch')  # TODO remove
     model.train()
     train_loss, train_correct, N = 0, 0, 0
     for batch_idx, (X, y) in enumerate(train_loader):
@@ -149,10 +171,9 @@ if __name__ == "__main__":
         model_class = models.MedALInceptionV3
         epochs = 100
         batch_size = 16
-        #  batch_size = 64  # TODO
-        learning_rate = 1e-3  # TODO
+        learning_rate = 1e-3
         data_loader_num_workers = max(1, mp.cpu_count() - 2)
-        train_frac = .3  # TODO
+        train_frac = .8
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
         weight_decay = 0.01
 

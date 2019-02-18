@@ -28,7 +28,6 @@ class MedALInceptionV3(nn.Module):
             OrderedDict(list(model.named_children())[:-1]))
         self.medal_top_layers = nn.Sequential(
             nn.Linear(2048, 1024),  # regularizer?
-            # + l2 regularizer keras: x = Dense(512,kernel_regularizer=l2(0.000001))(x)
             nn.BatchNorm1d(1024),
             nn.ReLU(),
             #  nn.Dropout(0.5),
