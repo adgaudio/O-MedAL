@@ -15,7 +15,7 @@ set -u
 # Optionally, on finish, can write a file to ensure the job won't run again.
 # usage: use_lockfile myfile.locked [ myfile.finished ]
 function use_lockfile() {
-  lockfile_fp=${1:-./lockfile}
+  lockfile_fp="$(realpath ${1:-./lockfile})"
   lockfile_success_fp=${2:-$lockfile_fp}
   # create lock file
   if [ -e "$lockfile_fp" ] ; then
@@ -42,6 +42,7 @@ function use_lockfile() {
   # automatically remove the lockfile when finished, whether fail or success
   function remove_lockfile() {
     # echo removed lockfile $lockfile_fp
+    cd "$(dirname $lockfile_fp)"
     rm "$lockfile_fp"
   }
   function trap_success() {
