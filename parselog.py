@@ -1,34 +1,69 @@
 """
-Quick script to analyze Keras log files and make some plots.
+Analyze Keras and MedAL Pytorch log files and make some plots.
 """
-import sys
 import re
 import pandas as pd
 import numpy as np
 import seaborn as sns
 from matplotlib import pyplot as plt
-from os.path import join, exists
+from os.path import join
+import os
+import argparse as ap
+import abc
 
-REGEXES_DATA_SHARED_ACROSS_ROWS = [
-    r'^Epoch (?P<epoch>\d+)/\d+ *$',
-    r'^Performing Active learning iteration (?P<al_iteration>\d+) for method ',
-]
-_REGEX_PERF = (
-        r'^ *(?P<iteration>\d+)/\d+ \[[=\.>]+\] - .*'
-        r'loss: (?P<train_loss>\d+\.\d+(e-?\d+)?) - '
-        r'acc: (?P<train_acc>\d+.\d+(e-?\d+)?)'
-     )
-REGEXES_DATA_OF_A_ROW = [
-    # given a line, try these regexes in sequence.  if a match is found, save
-    # the data from the captured group as a row and stop evaluating the rest of
-    # the regexes in the list.
-    (
-        _REGEX_PERF +
-        r' - val_loss: (?P<val_loss>\d+.\d+(e-?\d+)?)'
-        r' - val_acc: (?P<val_acc>\d+.\d+(e-?\d+)?) *$'
-    ),
-    _REGEX_PERF + ' *$',
-]
+
+class LogType(abc.ABC):
+    # A list of regexes.
+    regexes_data_shared_across_rows = NotImplemented  # type: List[regex]
+
+    # A list of regexes.  Given a line of log data, try these regexes in
+    # sequence.  If a match is found, save the data from the captured group as
+    # a row and stop evaluating the rest of the regexes in the list.
+    regexes_data_of_a_row = NotImplemented  # type: List[regex]
+
+
+class KerasConfig(LogType):
+    regexes_data_shared_across_rows = [
+        r'^Epoch (?P<epoch>\d+)/\d+ *$',
+        (r'^Performing Active learning iteration '
+         r'(?P<al_iteration>\d+) for method '),
+    ]
+    _regex_perf = (
+            r'^ *(?P<iteration>\d+)/\d+ \[[=\.>]+\] - .*'
+            r'loss: (?P<train_loss>\d+\.\d+(e-?\d+)?) - '
+            r'acc: (?P<train_acc>\d+.\d+(e-?\d+)?)'
+        )
+    regexes_data_of_a_row = [
+        (
+            _regex_perf +
+            r' - val_loss: (?P<val_loss>\d+.\d+(e-?\d+)?)'
+            r' - val_acc: (?P<val_acc>\d+.\d+(e-?\d+)?) *$'
+        ),
+        _regex_perf + ' *$',
+    ]
+
+
+class AlexMedALConfig(LogType):
+    _epoch = r"^epoch\s+(?P<epoch>\d+)\s+"
+    _batch_idx = r"^batch_idx\s+(?P<batch_idx>\d+)\s+"
+    _train_loss = r"train_loss\s+(?P<train_loss>\d+\.\d+(e-?\d+)?)\s+"
+    _val_loss = r"val_loss\s+(?P<val_loss>\d+\.\d+(e-?\d+)?)\s+"
+    _train_acc = r"train_acc\s+(?P<train_acc>\d+\.\d+(e-?\d+)?)\s+"
+    _val_acc = r"val_acc\s+(?P<val_acc>\d+\.\d+(e-?\d+)?)\s*"
+
+    regexes_data_shared_across_rows = [
+        r'Begin Active Learning Iteration (/P<al_iteration>\d+)'
+    ]
+
+    regexes_data_of_a_row = [
+        # given a line, try these regexes in sequence.  if a match is found,
+        # save the data from the captured group as a row and stop evaluating
+        # the rest of the regexes in the list.
+        (r'^' + _epoch + _train_loss + _val_loss + _train_acc + _val_acc +
+         '$'),
+        (r'^-->\s+' + _epoch + _train_loss + _train_acc + '$'),
+    ]
+
 
 SCHEMA = {
     'iteration': int,
@@ -49,17 +84,17 @@ def match(pat, line):
     return {}
 
 
-def parse_log_files(fps_in):
+def _parse_log_files_to_df(log_type, fps_in):
     perf = []
     for fp_in in fps_in:
         with open(fp_in, 'r') as fin:
             dct = {}
             for line in fin:
-                for pat in REGEXES_DATA_SHARED_ACROSS_ROWS:
+                for pat in log_type.regexes_data_shared_across_rows:
                     dct.update(match(pat, line))
                 dct2 = dct.copy()
 
-                for pat in REGEXES_DATA_OF_A_ROW:
+                for pat in log_type.regexes_data_of_a_row:
                     dct2 = match(pat, line)
                     if dct2:
                         dct2.update(dct.copy())
@@ -70,6 +105,11 @@ def parse_log_files(fps_in):
                         perf.append(dct2)
                         break
     df = pd.DataFrame(perf)
+    return df
+
+
+def _parse_log_sanitize_and_clean(df):
+    df = df.copy()
     assert not df.empty, "Error parsing the log file.  Found no usable data."
     df['perf'] = ~df['val_acc'].isnull()
     if df['al_iteration'].isnull().all():
@@ -116,8 +156,32 @@ def parse_log_files(fps_in):
     return df
 
 
+def _parse_log_files(fps_in, log_type):
+    df = _parse_log_files_to_df(log_type, fps_in)
+    df = _parse_log_sanitize_and_clean(df)
+    return df
+
+
+def parse_log_files(fps_in, log_type=None):
+    if log_type is not None:
+        return _parse_log_files(fps_in, log_type)
+
+    for log_type in [KerasConfig, AlexMedALConfig]:
+        df = None
+        try:
+            df = _parse_log_files(fps_in, log_type)
+            assert not df.empty
+            break
+        except Exception:
+            pass
+    if df is None:
+        raise Exception("Could not figure out how to parse the given log"
+                        " file(s): %s" % (str(config.fps_in)))
+    return df
+
+
 def plot_learning_curve_over_al_iterations(
-        df, col_suffix, last_al_iteration, selected_al_iters):
+        img_dir, df, col_suffix, last_al_iteration, selected_al_iters):
     """col_suffix is either "loss" or "acc" """
     f, (ax1, ax2) = plt.subplots(2, 1)
 
@@ -157,7 +221,8 @@ def plot_learning_curve_over_al_iterations(
     f.savefig(join(img_dir, "%s_vs_epoch.png" % col_suffix))
 
 
-def plot_heatmap(df, values_col, values_col_name_for_title, selected_al_iters):
+def plot_heatmap(img_dir, df, values_col, values_col_name_for_title,
+                 selected_al_iters):
     def make_heatmap(values_col, *args, **kwargs):
         dat = kwargs.pop('data')
         d = dat.pivot('iteration', 'epoch', values_col)
@@ -177,7 +242,7 @@ def plot_heatmap(df, values_col, values_col_name_for_title, selected_al_iters):
     f.savefig(join(img_dir, "iteration_vs_epoch_%s.png" % values_col))
 
 
-def plot_heatmap_at_al_iter(df, al_iteration):
+def plot_heatmap_at_al_iter(img_dir, df, al_iteration):
     df = df.query('al_iteration == @al_iteration')
     f, (ax1, ax2) = plt.subplots(2, 1)
     f.suptitle("Epoch vs Iteration on AL Iteration %s: Train Performance"
@@ -191,11 +256,11 @@ def plot_heatmap_at_al_iter(df, al_iteration):
                    "iteration_vs_epoch_al_iter_%s.png" % (al_iteration+1)))
 
 
-def quantile_perf_across_al_iterations(df):
-    # TODO: these plots can be deceptive since at each AL iteration, there are more
-    # iterations and therefore the probability of a higher .9 and a lower .1
-    # increases as AL iteration increases.
-    # maybe can normalize for this probability?
+def plot_quantile_perf_across_al_iterations(img_dir, df):
+    # TODO: these plots can be deceptive since at each AL iteration, there are
+    # more iterations and therefore the probability of a higher .9 and a lower
+    # .1 increases as AL iteration increases.  maybe can normalize for this
+    # probability?
     al_perf = df.groupby('al_iteration')[
         ['val_acc', 'val_loss', 'train_acc', 'train_loss']]\
         .quantile([0, .1, .25, .5, .75, .9, 1]).unstack()
@@ -215,33 +280,44 @@ def quantile_perf_across_al_iterations(df):
             img_dir, "quantile_%s_across_al_iter.png" % name.lower()))
 
 
+def build_arg_parser():
+    p = ap.ArgumentParser()
+    p.add_argument(
+        "output_dir", help="where to write results")
+    p.add_argument(
+        "fps_in", nargs='+', help="log files representing one training run")
+    return p
+
+
 if __name__ == "__main__":
-    img_dir = sys.argv[1]
-    fps_in = sys.argv[2:]
-    assert exists(img_dir)
+    config = build_arg_parser().parse_args()
+    print(config)
+    print("Analyzing log:  %s" % config.fps_in)
+    print("Saving images to directory:  %s" % config.output_dir)
 
-    print("Analyzing log:  %s" % fps_in)
-    print("Saving images to directory:  %s" % img_dir)
+    df = parse_log_files(config.fps_in)
 
-    df = parse_log_files(fps_in)
-    df = df.query('epoch < 50')
+    os.makedirs(config.output_dir, exist_ok=True)
+
+    print("Generating several plots...")
 
     last_al_iter = df['al_iteration'].max()
     selected_al_iters = np.unique(np.linspace(0, last_al_iter, 6, dtype='int'))
 
-    print("Generating several plots...")
-
     # learning curves
     plot_learning_curve_over_al_iterations(
-        df, 'loss', last_al_iter, selected_al_iters)
+        config.output_dir, df, 'loss', last_al_iter, selected_al_iters)
     plot_learning_curve_over_al_iterations(
-        df, 'acc', last_al_iter, selected_al_iters)
+        config.output_dir, df, 'acc', last_al_iter, selected_al_iters)
 
     # how learning progresses over time.
-    plot_heatmap(df, 'train_acc', "Train Accuracy", selected_al_iters)
-    plot_heatmap(df, 'train_loss', "Train Loss", selected_al_iters)
-    plot_heatmap_at_al_iter(df, last_al_iter)
+    plot_heatmap(
+        config.output_dir, df, 'train_acc', "Train Accuracy",
+        selected_al_iters)
+    plot_heatmap(
+        config.output_dir, df, 'train_loss', "Train Loss", selected_al_iters)
+    plot_heatmap_at_al_iter(config.output_dir, df, last_al_iter)
 
     # AL performance over time
     if last_al_iter > 0:
-        quantile_perf_across_al_iterations(df)
+        plot_quantile_perf_across_al_iterations(config.output_dir, df)
