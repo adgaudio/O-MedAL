@@ -24,7 +24,7 @@ cd "$(dirname "$(dirname "$(readlink -f "$0")")")"
 pwd
 
 # rsync latest code over
-rsync -ave ssh --exclude __pycache__ --exclude ./data --exclude ./new/data \
+rsync -ave ssh --delete --exclude __pycache__ --exclude ./data \
   ./ $bridges_user@data.bridges.psc.edu:/pylon5/ci4s8dp/$bridges_user/medal_improvements
 
 if [ "${mode}" = "interactive" ] ; then

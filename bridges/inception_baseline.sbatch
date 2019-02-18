@@ -81,7 +81,18 @@ cd $SCRATCH/medal_improvements
 source ./data/.bridges_venv/bin/activate
 pwd
 
-cd new
+# print out current configuration
+echo ======================
+echo CURRENT GIT CONFIGURATION:
+echo "git commit: $(git rev-parse HEAD)"
+echo
+echo git status:
+git status
+echo
+echo ======================
+echo
+echo
+
 python -m medal
 
 

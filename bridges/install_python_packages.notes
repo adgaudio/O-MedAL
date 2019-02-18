@@ -1,11 +1,13 @@
-# download packages
+# To install python packages in two steps
+
+# download packages from the jump node
 (
 mkdir data/tmp-whl
 cd data/tmp-whl
 pip download -r ../requirements.txt
 )
 
-# install packages
+# install packages on a worker node
 # interact -N 1 -n 1 -t 2:00:00 RM-shared
 # source ~/medal_improvements.env
 (
