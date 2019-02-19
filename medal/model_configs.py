@@ -41,9 +41,9 @@ class ModelConfig(abc.ABC):
 
 class BaselineInceptionV3(ModelConfig):
     run_id = "baseline_inception3"
-    epochs = 100
-    batch_size = 16
-    learning_rate = 1e-3
+    epochs = 300
+    batch_size = 8
+    learning_rate = 2e-4
     train_frac = .8
     weight_decay = 0.01
     trainable_inception_layers = True
@@ -61,20 +61,22 @@ class BaselineInceptionV3(ModelConfig):
 
         self.lossfn = torch.nn.modules.loss.BCELoss()
 
-        #  self.optimizer = torch.optim.Adam(
-        #      model.parameters(), lr=config.learning_rate, eps=.1,
-        #      weight_decay=self.weight_decay, betas=(.95, .999))
-        self.optimizer = torch.optim.SGD(
-            self.model.parameters(), lr=self.learning_rate, momentum=0.5,
-            weight_decay=self.weight_decay, nesterov=True)
+        self.optimizer = torch.optim.Adam(
+            self.model.parameters(), lr=self.learning_rate, eps=.1,
+            weight_decay=self.weight_decay, betas=(.95, .999))
+        #  self.optimizer = torch.optim.SGD(
+            #  self.model.parameters(), lr=self.learning_rate, momentum=0.5,
+            #  weight_decay=self.weight_decay, nesterov=True)
 
         self.dataset = datasets.Messidor(
             join(self.base_dir, "messidor/*.csv"),
             join(self.base_dir, "messidor/**/*.tif"),
             img_transform=tvt.Compose([
-                tvt.CenterCrop((800, 800)),
-                tvt.RandomCrop((512, 512)),
-                tvt.Resize((256, 256), 3),
+                tvt.RandomRotation(degrees=15),
+                tvt.RandomResizedCrop(
+                    512, scale=(0.9, 1.0), ratio=(1, 1)),
+                tvt.RandomHorizontalFlip(),
+                #  tvt.RandomVerticalFlip(),
                 tvt.ToTensor(),
             ]),
             getitem_transform=lambda x: (

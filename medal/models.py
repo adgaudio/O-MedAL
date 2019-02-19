@@ -27,14 +27,7 @@ class MedALInceptionV3(nn.Module):
         self.inception_layers = nn.Sequential(
             OrderedDict(list(model.named_children())[:-1]))
         self.top_layers = nn.Sequential(
-            nn.Linear(2048, 1024),  # regularizer?
-            nn.BatchNorm1d(1024),
-            nn.ReLU(),
-            nn.Dropout(0.5),
-            nn.Linear(1024, 512),
-            nn.BatchNorm1d(512),
-            nn.ReLU(),
-            nn.Linear(512, 1),
+            nn.Linear(2048, 1),
             nn.Sigmoid(),
         )
 
