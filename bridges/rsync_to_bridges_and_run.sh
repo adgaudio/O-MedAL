@@ -28,6 +28,9 @@ pwd
 bdir="/pylon5/ci4s8dp/$bridges_user/"
 run_dir="$bdir/medal_runs/$run_id"
 
+curtime="$(date +%Y%m%dT%H%M%S)"
+log_fp="$run_dir/data/log/$run_id-$curtime.log"
+
 # rsync latest code over and set up data directory
 if [ "${bridges_user}" != "no" ] ; then
 ssh $bridges_user@bridges.psc.edu <<EOF
@@ -43,25 +46,25 @@ if [ "${mode}" = "interactive" ] ; then
 # # within bridges, load the gpu interactively and run code inside a tmux session
 # # (so can consult nvidia-smi or do other things on the machine while it runs)
 TERM=screen ssh -tt -A jump 'tmux new-session -A -s 0 \; new-window -t 0:. -n MedAL -a ssh  '"$bridges_user"'@bridges.psc.edu' <<EOF
+interact -p ${partition:-GPU-small} --gres=${gres:-gpu:p100:2} -t ${maxtime:-08:00:00} -N 1 -n 28
+
 module load AI/anaconda3-5.1.0_gpu.2018-08 
 source activate \$AI_ENV
 cd $run_dir
-source ./data/.bridges_env/bin/activate
+source ./data/.bridges_venv/bin/activate
 pwd
 
 # rm Model_save.hdf5
-interact -p GPU-small --gres=gpu:p100:2 -t 00:10:00 -N 1 -n 28
 # tmux new-session "python Script.py 2>&1 | tee -a data/log/`date +%Y%m%dT%H%M%S`.log"
-tmux new-session "python -m medal 2>&1 | tee -a data/log/`date +%Y%m%dT%H%M%S`.log"
+tmux new-session "python -m medal $python_args --run-id $run_id 2>&1 | tee -a $log_fp"
+
 exit
 EOF
 
 elif [ "$mode" = "sbatch" ] ; then
   mkdir -p data/tmp/sbatch
 
-  curtime="$(date +%Y%m%dT%H%M%S)"
   sbatch_fp="data/tmp/sbatch/$run_id-$curtime.sbatch"
-  log_fp="data/log/$run_id-$curtime.log"
 
 
   # All these options are settable from the command-line
@@ -84,8 +87,8 @@ elif [ "$mode" = "sbatch" ] ; then
     $bridges_user@data.bridges.psc.edu:$run_dir/data/tmp
 
   ssh $bridges_user@bridges.psc.edu <<EOF
-cd \$SCRATCH/medal_runs/$run_id
-sbatch -o $log_fp -e $log_fp $sbatch_fp
+cd $run_dir
+sbatch -o "$log_fp" -e "$log_fp" $sbatch_fp
 EOF
 
 elif [ -e "$mode" ] ; then # run via sbatch
@@ -93,9 +96,7 @@ elif [ -e "$mode" ] ; then # run via sbatch
   echo $mode
 
 ssh $bridges_user@bridges.psc.edu <<EOF
-cd $run_dir/data/log
-fp="$run_id-`date +%Y%m%dT%H%M%S`.log"
-sbatch -o \$fp -e \$fp ../../$mode
+sbatch -o $log_fp -e $log_fp $mode
 EOF
 
 else
