@@ -3,14 +3,20 @@
 
 
 function run_parselog_py() {
-  fp_in=$1
+  overwrite_plots=$1
+  fp_in=$2
   out_dir="data/_analysis/${fp_in#data/log/}"
-  if [ -e "$out_dir" ] ; then
-    # echo skipping $fp_in
+  if [ "${overwrite_plots:-false}" = false -a -e "$out_dir" ] ; then
+    echo skipping $fp_in
     exit
   fi
   python ./bin/parselog.py "$out_dir" "$fp_in" >/dev/null 2>/dev/null
-  if [ $? -ne 0 ] ; then echo failed_to_parse $fp_in ; fi
+  if [ $? -ne 0 ] ; then
+    echo failed_to_parse $fp_in
+  else
+    echo "successfully_parsed $fp_in"
+    echo "    output_dir $out_dir"
+  fi
 }
 
 
