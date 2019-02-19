@@ -6,4 +6,7 @@ Pillow
 pandas
 torch
 torchvision
-argparse
+configargparse
+
+# for bridges:
+j2cli

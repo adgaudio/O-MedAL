@@ -13,10 +13,11 @@
 #
 
 set -u
-set -x
+set -e
+# set -x
 
 bridges_user=${1}
-mode=${2:-donothing}  # interactive|nobridges|some/filepath.sbatch  # if interactive, limited to 8 hours.
+mode=${2:-donothing}  # interactive|sbatch|some/filepath.sbatch  # if interactive, limited to 8 hours.
 
 
 # cd into parent directory of the script is
@@ -24,8 +25,11 @@ cd "$(dirname "$(dirname "$(readlink -f "$0")")")"
 pwd
 
 # rsync latest code over
-rsync -ave ssh --delete --exclude __pycache__ --exclude ./data \
+
+if [ "${bridges_user}" != "no" ] ; then
+rsync -ave ssh --delete --exclude __pycache__ --exclude data --exclude old \
   ./ $bridges_user@data.bridges.psc.edu:/pylon5/ci4s8dp/$bridges_user/medal_improvements
+fi
 
 if [ "${mode}" = "interactive" ] ; then
 # # set up to run interactively on bridges (via a socks proxy running tmux)
@@ -43,6 +47,37 @@ interact -p GPU-small --gres=gpu:p100:2 -t 00:10:00 -N 1 -n 28
 # tmux new-session "python Script.py 2>&1 | tee -a data/log/`date +%Y%m%dT%H%M%S`.log"
 tmux new-session "python -m medal 2>&1 | tee -a data/log/`date +%Y%m%dT%H%M%S`.log"
 exit
+EOF
+
+elif [ "$mode" = "sbatch" ] ; then
+  mkdir -p data/tmp/sbatch
+
+  curtime="$(date +%Y%m%dT%H%M%S)"
+  sbatch_fp="data/tmp/sbatch/$run_id-$curtime.sbatch"
+  log_fp="data/log/$run_id-$curtime.log"
+
+
+  # All these options are settable from the command-line
+  # some are required
+  run_id=${run_id} \
+  python_args=${python_args} \
+  cpu_cores=${cpu_cores:-28} \
+  partition=${partition:-GPU-shared} \
+  gres=${gres:-gpu:p100:2} \
+  maxtime=${maxtime:-15:00:00} \
+  lockfile_path=data/run/$run_id \
+  lockfile_runonce=yes \
+  j2 -f env \
+  bridges/template.sbatch |tee "$sbatch_fp"
+
+  echo Wrote tmp sbatch to: $sbatch_fp
+
+  rsync -aqe ssh ./data/tmp/sbatch \
+    $bridges_user@data.bridges.psc.edu:/pylon5/ci4s8dp/$bridges_user/medal_improvements/data/tmp
+
+  ssh $bridges_user@bridges.psc.edu <<EOF
+cd \$SCRATCH/medal_improvements
+sbatch -o $log_fp -e $log_fp $sbatch_fp
 EOF
 
 elif [ -e "$mode" ] ; then # run via sbatch

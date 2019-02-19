@@ -199,7 +199,9 @@ def add_subparser(subparsers, name: str, modelconfig_class: type):
 
 def build_arg_parser():
     p = ap.ArgumentParser()
-    sp = p.add_subparsers(help='model', required=True)
+    sp = p.add_subparsers(help='The model configuration to work with',)
+    sp.required = True
+    sp.dest = 'model_configuration_name'
     add_subparser(sp, 'baseline-inception', MC.BaselineInceptionV3)
     return p
 
