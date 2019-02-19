@@ -73,8 +73,8 @@ elif [ "$mode" = "sbatch" ] ; then
   partition=${partition:-GPU-shared} \
   gres=${gres:-gpu:p100:2} \
   maxtime=${maxtime:-15:00:00} \
+  lockfile_runonce=${lockfile_runonce:-yes} \
   lockfile_path=data/run/$run_id \
-  lockfile_runonce=yes \
   j2 -f env \
   bridges/template.sbatch |tee "$sbatch_fp"
 
