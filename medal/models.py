@@ -16,11 +16,12 @@ class MedALInceptionV3(nn.Module):
         # get layers of baseline model, loaded with some pre-trained weights
         model = tv.models.Inception3(
             transform_input=True, aux_logits=False)
-        os.makedirs(config.torch_model_dir, exist_ok=True)
-        Z = torch.utils.model_zoo.load_url(
-            url=self.inception_v3_google,
-            model_dir=config.torch_model_dir)
-        model.load_state_dict(Z, strict=False)
+        if config.load_pretrained_inception_weights:
+            os.makedirs(config.torch_model_dir, exist_ok=True)
+            Z = torch.utils.model_zoo.load_url(
+                url=self.inception_v3_google,
+                model_dir=config.torch_model_dir)
+            model.load_state_dict(Z, strict=False)
 
         # define our model
         self.inception_layers = nn.Sequential(

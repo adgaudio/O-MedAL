@@ -48,6 +48,7 @@ class BaselineInceptionV3(ModelConfig):
     weight_decay = 0.01
     trainable_inception_layers = True
     trainable_top_layers = True
+    load_pretrained_inception_weights = True
 
 
     def __init__(self, config_override_dict):
