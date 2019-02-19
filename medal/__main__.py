@@ -1,30 +1,10 @@
+import configargparse as ap
 import glob
-import multiprocessing as mp
-import numpy as np
-from os.path import join, dirname, abspath
+from os.path import dirname
 import os
 import torch
-import torch.optim
-import torch.utils.data as TD
-import torchvision.transforms as tvt
-import torchvision as tv
 
-from . import datasets
-from . import models
-
-
-def get_data_loaders(config):
-    for idxs in config.dataset.train_test_split(
-            train_frac=config.train_frac,
-            random_state=config.data_loader_random_state):
-        loader = TD.DataLoader(
-            config.dataset,
-            batch_size=config.batch_size,
-            sampler=TD.SubsetRandomSampler(idxs),
-            pin_memory=True, num_workers=config.data_loader_num_workers
-        )
-        yield loader
-
+from . import model_configs as MC
 
 #  def MNIST_get_data_loaders(config):
 #      """For debugging MedAL code, used the MNIST dataset"""
@@ -39,7 +19,8 @@ def get_data_loaders(config):
 #          train=True, transform=trans, target_transform=ttrans, download=True)
 #      test_set = tv.datasets.MNIST(
 #          root=join(DATA_DIR, "MNIST"),
-#          train=False, transform=trans, target_transform=ttrans, download=True)
+#          train=False, transform=trans, target_transform=ttrans,
+#          download=True)
 
 #      for x in train_set, test_set:
 #          yield torch.utils.data.DataLoader(
@@ -48,155 +29,180 @@ def get_data_loaders(config):
 #                          shuffle=True)
 
 
-def save_checkpoint(config, model, optimizer, epoch):
-    save_fp = config.checkpoint_fp_template.format(
+CHECKPOINT_FP_TEMPLATE = "{checkpoint_dir}/{run_id}/epoch_{epoch}.pth"
+
+
+def save_checkpoint(config, epoch):
+    save_fp = CHECKPOINT_FP_TEMPLATE.format(
+        checkpoint_dir=config.checkpoint_dir,
         run_id=config.run_id, epoch=epoch)
+
     os.makedirs(dirname(save_fp), exist_ok=True)
     print("Save checkpoint", save_fp)
     torch.save({
         'epoch': epoch,
-        'model_state_dict': model.state_dict(),
-        'optimizer_state_dict': optimizer.state_dict(),
+        'model_state_dict': config.model.state_dict(),
+        'optimizer_state_dict': config.optimizer.state_dict(),
     }, save_fp)
 
 
 def load_checkpoint(config):
-    model = config.model_class(config)
-    model.set_layers_trainable()
-
-    optimizer = torch.optim.SGD(
-        model.parameters(), lr=config.learning_rate, momentum=0.5,
-        weight_decay=config.weight_decay, nesterov=True)
-    #  optimizer = torch.optim.Adam(
-        #  model.parameters(), lr=config.learning_rate, eps=.1,
-        #  weight_decay=config.weight_decay, betas=(.95, .999))
-
-    if config.device == 'cuda' and torch.cuda.device_count() > 1:
-        print("Using", torch.cuda.device_count(), "GPUs")
-        # dim = 0 [30, xxx] -> [10, ...], [10, ...], [10, ...] on 3 GPUs
-        model_ = torch.nn.DataParallel(model)
-        model_.lossfn = model.lossfn
-        model = model_
-
-    model.to(config.device)
-
-    read_fp = config.checkpoint_fp_template.format(
+    read_fp = CHECKPOINT_FP_TEMPLATE.format(
+        checkpoint_dir=config.checkpoint_dir,
         run_id=config.run_id, epoch='*')
     fps = glob.glob(read_fp)
     if fps:  # yay - there is a checkpoint to restore
         fp = max(fps)
         print("Restoring from checkpoint:", fp)
         checkpoint = torch.load(fp)
-        model.load_state_dict(checkpoint['model_state_dict'])
-        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        config.model.load_state_dict(checkpoint['model_state_dict'])
+        config.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         epoch = checkpoint['epoch']
     else:
         epoch = 1
-    return model, optimizer, epoch
+    return epoch
 
 
-def train_one_epoch(epoch, config, train_loader, model, optimizer):
-    model.train()
+def train_one_epoch(config, epoch):
+    config.model.train()
     train_loss, train_correct, N = 0, 0, 0
-    for batch_idx, (X, y) in enumerate(train_loader):
+    for batch_idx, (X, y) in enumerate(config.train_loader):
         if X.shape[0] != config.batch_size:
             #  print("Skipping end of batch", X.shape)
             continue
         X, y = X.to(config.device), y.to(config.device)
-        optimizer.zero_grad()
-        yhat = model(X)
-        loss = model.lossfn(yhat, y.float())
+        config.optimizer.zero_grad()
+        yhat = config.model(X)
+        loss = config.lossfn(yhat, y.float())
         loss.backward()
-        optimizer.step()
+        config.optimizer.step()
 
         with torch.no_grad():
             batch_size = X.shape[0]
             _loss = loss.item() * batch_size
             train_loss += _loss
-            _correct = y.int().eq((yhat.view_as(y) >.5).int()).sum().item()
+            _correct = y.int().eq((yhat.view_as(y) > .5).int()).sum().item()
             train_correct += _correct
             N += batch_size
 
             # print output if batch_idx % config.log_interval == 0
             if batch_idx % 10 == 0:
-                print('-->', 'epoch:', epoch,
-                    'batch_idx', batch_idx,
+                print(
+                    '-->', 'epoch:', epoch, 'batch_idx', batch_idx,
                     'train_loss:', train_loss/N,
                     'train_acc', train_correct / N)
     return train_loss/N, train_correct/N
 
 
-def train(config, train_loader, val_loader, model, optimizer, epoch):
+def train(config, epoch):
     for epoch in range(epoch, config.epochs + 1):
-        train_loss, train_acc = train_one_epoch(
-            epoch, config, train_loader, model, optimizer)
-        save_checkpoint(config, model, optimizer, epoch)
-        val_loss, val_acc = test(config, val_loader, model)
+        train_loss, train_acc = train_one_epoch(config, epoch)
+        save_checkpoint(config, epoch)
+        val_loss, val_acc = test(config)
         print(
             "epoch", epoch, "train_loss", train_loss, "val_loss", val_loss,
             "train_acc", train_acc, "val_acc", val_acc)
 
 
-def test(config, val_loader, model):
+def test(config):
     """Return avg loss and accuracy on the validation data"""
-    model.eval()
+    config.model.eval()
     totloss = 0
     correct = 0
     N = 0
     with torch.no_grad():
-        for X, y in val_loader:
+        for X, y in config.val_loader:
             batch_size = X.shape[0]
             X, y = X.to(config.device), y.to(config.device)
-            yhat = model(X)
-            totloss += (model.lossfn(yhat, y.float()) * batch_size).item()
-            correct += y.int().eq((yhat.view_as(y) >.5).int()).sum().item()
+            yhat = config.model(X)
+            totloss += (config.lossfn(yhat, y.float()) * batch_size).item()
+            correct += y.int().eq((yhat.view_as(y) > .5).int()).sum().item()
             N += batch_size
     return totloss/N, correct/N
 
 
-def main(config):
+def main(ns: ap.Namespace):
+    config_overrides = ns.__dict__
+    config = config_overrides.pop('modelconfig_class')(config_overrides)
     # define the dataset
     print('\n'.join(str((k, v)) for k, v in config.__dict__.items()
                     if not k.startswith('__')))
-    train_loader, val_loader = get_data_loaders(config)
-    model, optimizer, epoch = load_checkpoint(config)
-    train(config, train_loader, val_loader, model, optimizer, epoch)
+
+    if config.device == 'cuda' and torch.cuda.device_count() > 1:
+        print("Using", torch.cuda.device_count(), "GPUs")
+        # dim = 0 [30, xxx] -> [10, ...], [10, ...], [10, ...] on 3 GPUs
+        config.model = torch.nn.DataParallel(config.model)
+    config.model.to(config.device)
+
+    epoch = load_checkpoint(config)
+    train(config, epoch)
+
+
+def _add_subparser_find_configurable_attributes(kls):
+    # get a list of configurable attributes from given class and parent classes
+    keys = set()
+    klass_seen = set()
+    klass_lst = [kls]
+    while klass_lst:
+        klass = klass_lst.pop()
+        for k in klass.__bases__:
+            if k in klass_seen:
+                continue
+            klass_seen.add(k)
+            klass_lst.append(k)
+        keys.update({x for x in klass.__dict__ if not x.startswith('_')})
+    return keys
+
+
+def _add_subparser_arg(subparser, k, v, obj):
+    """Add an argparse option via subparser.add_argument(...)
+    for the given attribute k, with default value v, and where hasattr(obj, k)
+    """
+    g = subparser
+    accepted_simple_types = (int, float, str)
+    ku = k.replace('_', '-')
+    if isinstance(v, bool):
+        grp = g.add_mutually_exclusive_group()
+        grp.add_argument('--%s' % ku, action='store_const', const=True)
+        grp.add_argument(
+            '--no-%s' % ku, action='store_const', const=False, dest=k)
+    elif isinstance(v, accepted_simple_types):
+        g.add_argument('--%s' % ku, type=type(v),
+                       default=getattr(obj, k))
+    elif isinstance(v, (list, tuple)):
+        if all(isinstance(x, accepted_simple_types) for x in v):
+            g.add_argument(
+                '--%s' % ku,
+                nargs=len(v), type=type(v[0]))
+        else:
+            g.add_argument(
+                '--%s' % ku, nargs=len(v), type=v[0])
+    elif any(v is x for x in accepted_simple_types):
+        g.add_argument('--%s' % ku, type=v)
+
+
+def add_subparser(subparsers, name: str, modelconfig_class: type):
+    """
+    Automatically add argument parser options for attributes in the class and
+    all parent classes
+    """
+    g = subparsers.add_parser(name)
+    g.add_argument(
+        '--modelconfig_class', help=ap.SUPPRESS, default=modelconfig_class)
+
+    # add an argument for each configurable key that we can work with
+    keys = _add_subparser_find_configurable_attributes(modelconfig_class)
+    for k in keys:
+        v = getattr(modelconfig_class, k)
+        _add_subparser_arg(g, k, v, modelconfig_class)
+
+
+def build_arg_parser():
+    p = ap.ArgumentParser()
+    sp = p.add_subparsers(help='model', required=True)
+    add_subparser(sp, 'baseline-inception', MC.BaselineInceptionV3)
+    return p
 
 
 if __name__ == "__main__":
-    DATA_DIR = join(dirname(dirname(abspath(__file__))), 'data')
-
-    class config:
-        run_id = "baseline_inception3_trainfrac.8"
-        model_class = models.MedALInceptionV3
-        epochs = 100
-        batch_size = 16
-        learning_rate = 1e-3
-        data_loader_num_workers = max(1, mp.cpu_count() - 2)
-        train_frac = .8
-        device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        weight_decay = 0.01
-
-        data_loader_random_state = 0  # np.random.RandomState(0)
-        model_dir = join(DATA_DIR, "torch/models")
-        checkpoint_fp_template = join(
-            DATA_DIR, "model_checkpoints/{run_id}/epoch_{epoch}.pth")
-
-        dataset = datasets.Messidor(
-            join(DATA_DIR, "messidor/*.csv"),
-            join(DATA_DIR, "messidor/**/*.tif"),
-            img_transform=tvt.Compose([
-                tvt.CenterCrop((800, 800)),
-                tvt.RandomCrop((512, 512)),
-                tvt.Resize((256, 256), 3),
-                tvt.ToTensor(),
-            ]),
-            getitem_transform=lambda x: (
-                x['image'],
-                torch.tensor([float(x['Retinopathy grade'] != 0)]))
-        )
-
-        def __repr__(self):
-            return "config:%s" % self.run_id
-
-    main(config)
+    main(build_arg_parser().parse_args())

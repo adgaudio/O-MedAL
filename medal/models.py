@@ -12,21 +12,20 @@ class MedALInceptionV3(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.transform_input = True
-        self.lossfn = nn.modules.loss.BCELoss()
 
         # get layers of baseline model, loaded with some pre-trained weights
         model = tv.models.Inception3(
             transform_input=True, aux_logits=False)
-        os.makedirs(config.model_dir, exist_ok=True)
+        os.makedirs(config.torch_model_dir, exist_ok=True)
         Z = torch.utils.model_zoo.load_url(
             url=self.inception_v3_google,
-            model_dir=config.model_dir)
+            model_dir=config.torch_model_dir)
         model.load_state_dict(Z, strict=False)
 
         # define our model
         self.inception_layers = nn.Sequential(
             OrderedDict(list(model.named_children())[:-1]))
-        self.medal_top_layers = nn.Sequential(
+        self.top_layers = nn.Sequential(
             nn.Linear(2048, 1024),  # regularizer?
             nn.BatchNorm1d(1024),
             nn.ReLU(),
@@ -39,12 +38,13 @@ class MedALInceptionV3(nn.Module):
         )
 
     def set_layers_trainable(
-            self, inception_layers=True, medal_top_layers=True):
+            self, inception_layers=True, top_layers=True):
         layers = [
-            (inception_layers, self.inception_layers),
-            (medal_top_layers, self.medal_top_layers)
+            ('inception_layers', inception_layers, self.inception_layers),
+            ('top_layers', top_layers, self.top_layers)
         ]
-        for is_trainable, _layers in layers:
+        for name, is_trainable, _layers in layers:
+            print("set %s trainable: %s" % (name, is_trainable))
             for p in _layers.parameters():
                 p.requires_grad = is_trainable
 
@@ -55,6 +55,6 @@ class MedALInceptionV3(nn.Module):
             x[:, 1] = x[:, 1] * (0.224 / 0.5) + (0.456 - 0.5) / 0.5
             x[:, 2] = x[:, 2] * (0.225 / 0.5) + (0.406 - 0.5) / 0.5
         x = self.inception_layers(x)
-        x = x.mean((2,3))
-        x = self.medal_top_layers(x)
+        x = x.mean((2, 3))
+        x = self.top_layers(x)
         return x
