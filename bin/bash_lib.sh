@@ -58,7 +58,7 @@ function use_lockfile() {
   function trap_success() {
     if [ "$?" = "0" ] ; then
       echo job successfully completed
-      if [ "$lockfile_fp" != "${lockfile_success_fp}" ] ; then
+      if [ "$lockfile_runonce" = "yes" ] ; then
         echo please rm this file to re-run job again: ${lockfile_success_fp}
         date > $lockfile_success_fp
       fi
