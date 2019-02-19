@@ -10,5 +10,5 @@ source ./bin/bash_lib.sh
 
 # execute parselog in parallel
 export -f run_parselog_py
-find data/log/  -type f -name "*.log" -o -name "*.txt" \
+find data/log/  -type f -name "*.log" -o -type f -name "*.txt" \
     | parallel run_parselog_py

@@ -5,8 +5,12 @@
 function run_parselog_py() {
   fp_in=$1
   out_dir="data/_analysis/${fp_in#data/log/}"
-  if [ -e "$out_dir" ] ; then exit ; fi
-  python ./bin/parselog.py "$out_dir" "$fp_in" >/dev/null
+  if [ -e "$out_dir" ] ; then
+    # echo skipping $fp_in
+    exit
+  fi
+  python ./bin/parselog.py "$out_dir" "$fp_in" >/dev/null 2>/dev/null
+  if [ $? -ne 0 ] ; then echo failed_to_parse $fp_in ; fi
 }
 
 
