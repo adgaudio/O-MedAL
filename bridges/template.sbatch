@@ -9,7 +9,7 @@
 export TERM=screen
 module load AI/anaconda3-5.1.0_gpu.2018-08
 source activate $AI_ENV
-cd $SCRATCH/medal_improvements
+cd {{run_dir}}
 source ./data/.bridges_venv/bin/activate
 
 pwd

@@ -24,11 +24,18 @@ mode=${2:-donothing}  # interactive|sbatch|some/filepath.sbatch  # if interactiv
 cd "$(dirname "$(dirname "$(readlink -f "$0")")")"
 pwd
 
-# rsync latest code over
+# set a directory for this run
+bdir="/pylon5/ci4s8dp/$bridges_user/"
+run_dir="$bdir/medal_runs/$run_id"
 
+# rsync latest code over and set up data directory
 if [ "${bridges_user}" != "no" ] ; then
+ssh $bridges_user@bridges.psc.edu <<EOF
+mkdir -p "$run_dir"
+ln -rs "$bdir/medal_improvements/data" "$run_dir" || true
+EOF
 rsync -ave ssh --delete --exclude __pycache__ --exclude data --exclude old \
-  ./ $bridges_user@data.bridges.psc.edu:/pylon5/ci4s8dp/$bridges_user/medal_improvements
+  ./ "$bridges_user@data.bridges.psc.edu:$bdir/medal_runs/$run_id"
 fi
 
 if [ "${mode}" = "interactive" ] ; then
@@ -38,7 +45,7 @@ if [ "${mode}" = "interactive" ] ; then
 TERM=screen ssh -tt -A jump 'tmux new-session -A -s 0 \; new-window -t 0:. -n MedAL -a ssh  '"$bridges_user"'@bridges.psc.edu' <<EOF
 module load AI/anaconda3-5.1.0_gpu.2018-08 
 source activate \$AI_ENV
-cd \$SCRATCH/medal_improvements
+cd $run_dir
 source ./data/.bridges_env/bin/activate
 pwd
 
@@ -60,6 +67,7 @@ elif [ "$mode" = "sbatch" ] ; then
   # All these options are settable from the command-line
   # some are required
   run_id=${run_id} \
+  run_dir=${run_dir} \
   python_args=${python_args} \
   cpu_cores=${cpu_cores:-28} \
   partition=${partition:-GPU-shared} \
@@ -73,10 +81,10 @@ elif [ "$mode" = "sbatch" ] ; then
   echo Wrote tmp sbatch to: $sbatch_fp
 
   rsync -aqe ssh ./data/tmp/sbatch \
-    $bridges_user@data.bridges.psc.edu:/pylon5/ci4s8dp/$bridges_user/medal_improvements/data/tmp
+    $bridges_user@data.bridges.psc.edu:$run_dir/data/tmp
 
   ssh $bridges_user@bridges.psc.edu <<EOF
-cd \$SCRATCH/medal_improvements
+cd \$SCRATCH/medal_runs/$run_id
 sbatch -o $log_fp -e $log_fp $sbatch_fp
 EOF
 
@@ -85,8 +93,8 @@ elif [ -e "$mode" ] ; then # run via sbatch
   echo $mode
 
 ssh $bridges_user@bridges.psc.edu <<EOF
-cd \$SCRATCH/medal_improvements/data/log
-fp="$(basename "$mode")-`date +%Y%m%dT%H%M%S`.log"
+cd $run_dir/data/log
+fp="$run_id-`date +%Y%m%dT%H%M%S`.log"
 sbatch -o \$fp -e \$fp ../../$mode
 EOF
 
