@@ -95,10 +95,5 @@ echo
 
 python -m medal
 
-
-# clear previous model state
-# rm Model_save.hdf5
-# python Script.py
-
 echo finished training MedAL
 date
