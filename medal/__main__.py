@@ -167,16 +167,15 @@ def _add_subparser_arg(subparser, k, v, obj):
         grp.add_argument(
             '--no-%s' % ku, action='store_const', const=False, dest=k)
     elif isinstance(v, accepted_simple_types):
-        g.add_argument('--%s' % ku, type=type(v),
-                       default=getattr(obj, k))
+        g.add_argument(
+            '--%s' % ku, type=type(v), default=getattr(obj, k), help=' ')
     elif isinstance(v, (list, tuple)):
         if all(isinstance(x, accepted_simple_types) for x in v):
             g.add_argument(
-                '--%s' % ku,
-                nargs=len(v), type=type(v[0]))
+                '--%s' % ku, nargs=len(v), type=type(v[0]), default=v,
+                help=' ')
         else:
-            g.add_argument(
-                '--%s' % ku, nargs=len(v), type=v[0])
+            g.add_argument('--%s' % ku, nargs=len(v), type=v[0])
     elif any(v is x for x in accepted_simple_types):
         g.add_argument('--%s' % ku, type=v)
 
@@ -186,7 +185,9 @@ def add_subparser(subparsers, name: str, modelconfig_class: type):
     Automatically add argument parser options for attributes in the class and
     all parent classes
     """
-    g = subparsers.add_parser(name)
+    g = subparsers.add_parser(
+        #  name, formatter_class=ap.RawDescriptionHelpFormatter)
+        name, formatter_class=ap.ArgumentDefaultsHelpFormatter)
     g.add_argument(
         '--modelconfig_class', help=ap.SUPPRESS, default=modelconfig_class)
 
@@ -198,8 +199,9 @@ def add_subparser(subparsers, name: str, modelconfig_class: type):
 
 
 def build_arg_parser():
-    p = ap.ArgumentParser()
-    sp = p.add_subparsers(help='The model configuration to work with',)
+    p = ap.ArgumentParser(
+        formatter_class=ap.ArgumentDefaultsHelpFormatter)
+    sp = p.add_subparsers(help='The model configuration to work with')
     sp.required = True
     sp.dest = 'model_configuration_name'
     add_subparser(sp, 'baseline-inception', MC.BaselineInceptionV3)
