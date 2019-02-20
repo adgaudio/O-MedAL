@@ -5,21 +5,33 @@ Work in progress.
 
 ### Roadmap:
 - reproduce MedAL ourselves to get a baseline.
+  - plain inception baseline in PyTorch
+  - plain MedAL baseline in PyTorch
+
 - Test the min max algorithm and get results.
-- Test the min max + feature tranform on the hypersphere (soln 1 above)
-- Try knn min-max approach on hypersphere (soln 2 above)
-  - If this works, try the knn graph over time (soln 3 above)
+- Test the min max + feature tranform on the hypersphere (soln 1 below)
+- Try knn min-max approach on hypersphere (soln 2 below)
+- Try the knn graph over time with momentum (soln 3 below)
+  - plot features of a set of points (using t-sne or something similar) every al iteration
 
+- Online learning: Don't retrain from scratch at every AL iteration.
+  a) Try sampling N points and training incrementally on just those N
+  b) Try sampling N points and train incrementally on those N plus a
+    random subset of previously trained on points
+  c) Try sampling N points and train incrementally on the whole dataset
+  --> Repeat these 3 experiments using the KNN graph over time with momentum.
 
-Future:
-- redo the data processing steps to work with corrected Messidor.
-- don't retrain from scratch.  try sampling 10 points and training
-  incrementally on just those 10.
-- If knn works, can try variations on soln (4)
+- If knn works, can try variations on soln (4).
+
+Done:
+x bridges pipeline and infrastructure
+x redo the data processing steps to work with corrected Messidor.
+
 
 
 ---
 
+Alex's ramblings... to be better organized
 
 - There exists a min max approach proposed by Pedro and implemented by
   Anuj / Bique to switch from MedAL's averaging method on the feature
