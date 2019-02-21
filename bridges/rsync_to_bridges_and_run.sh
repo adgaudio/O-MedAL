@@ -3,19 +3,40 @@
 # Run MedAL on Bridges (Pittsburgh Super Computer) by tunneling through a jump
 # server.
 
-# To use this script, you should add the following to your ssh config.
-# Useful assuming you have a jump host (ie AWS or Google cloud server) from
-# which you wish to run the jobs.
-#
-# Host socksjump
-#   Hostname IP_ADDRESS_OF_YOUR_JUMP_HOST
-#   User YOUR_USERNAME
-#
+function usage() {
+  cat <<EOF
+usage: 
+There are 3 ways to use this script.
+
+The most common and useful way is to submit a batch job.  This is set up to only run an experiment at most once by default.
+
+run_id=my_test_experiment python_args="baseline-inception" maxtime=3:00:00 ./bridges/rsync_to_bridges_and_run.sh agaudio sbatch
+
+You can also set up the interactive mode (which also saves a log file of the
+run and logs you into an interactive session).  To use this interactive mode,
+you should add the following to your ssh config.
+
+Host jump
+  Hostname IP_ADDRESS_OF_YOUR_JUMP_HOST
+  User YOUR_USERNAME
+
+Then the interactive command looks like:
+
+    run_id=test python_args="baseline-inception" ./bridges/rsync_to_bridges_and_run.sh agaudio interactive
+
+Third, you can also create your own sbatch file and execute it.  The log
+files will automatically get saved in the log directory.
+
+    run_id=test ./bridges/rsync_to_bridges_and_run.sh agaudio ./path/to/myfile.sbatch
+EOF
+  exit 1
+}
 
 set -u
 set -e
 # set -x
 
+if [ "${1:-}" = "" ] ; then usage ; fi
 bridges_user=${1}
 mode=${2:-donothing}  # interactive|sbatch|some/filepath.sbatch  # if interactive, limited to 8 hours.
 
