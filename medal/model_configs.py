@@ -62,7 +62,7 @@ class BaselineInceptionV3(ModelConfig):
         self.lossfn = torch.nn.modules.loss.BCELoss()
 
         self.optimizer = torch.optim.Adam(
-            self.model.parameters(), lr=self.learning_rate,
+            self.model.parameters(), lr=self.learning_rate, eps=0.1,
             weight_decay=self.weight_decay, betas=(.9, .999))
         #  self.optimizer = torch.optim.SGD(
             #  self.model.parameters(), lr=self.learning_rate, momentum=0.5,
