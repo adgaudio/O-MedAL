@@ -4,7 +4,7 @@ from os.path import dirname
 import os
 import torch
 
-from . import model_configs as MC
+from medal import model_configs as MC
 
 #  def MNIST_get_data_loaders(config):
 #      """For debugging MedAL code, used the MNIST dataset"""
