@@ -65,6 +65,22 @@ class AlexMedALConfig(LogType):
     ]
 
 
+class KartikMedALConfig(LogType):
+    _epoch = r"^Epochs:\s+(?P<epoch>\d+)\s+"
+    _train_loss = r"Train Loss:\s+(?P<train_loss>\d+\.\d+(e-?\d+)?)\s+"
+    _train_acc = r"Train Accuracy:\s+(?P<train_acc>\d+\.\d+(e-?\d+)?)\s+"
+    _val_loss = r"Test Loss:\s+(?P<val_loss>\d+\.\d+(e-?\d+)?)\s+"
+    _val_acc = r"Test Accuracy:\s+(?P<val_acc>\d+\.\d+(e-?\d+)?)\s*"
+    regexes_data_shared_across_rows = [
+        #  r'Begin Active Learning Iteration (/P<al_iteration>\d+)'
+    ]
+
+    regexes_data_of_a_row = [
+        (r'^' + _epoch + _train_loss + _train_acc + _val_loss + _val_acc +
+         '$'),
+    ]
+
+
 SCHEMA = {
     'iteration': int,
     'train_loss': float,
@@ -166,7 +182,7 @@ def parse_log_files(fps_in, log_type=None):
     if log_type is not None:
         return _parse_log_files(fps_in, log_type)
 
-    for log_type in [KerasConfig, AlexMedALConfig]:
+    for log_type in [KerasConfig, AlexMedALConfig, KartikMedALConfig]:
         df = None
         try:
             df = _parse_log_files(fps_in, log_type)
