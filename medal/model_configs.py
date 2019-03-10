@@ -10,7 +10,7 @@ from . import datasets
 from . import models
 
 
-class ModelConfig(abc.ABC):
+class FeedForwardModelConfig(abc.ABC):
     run_id = str
 
     batch_size = int
@@ -39,7 +39,7 @@ class ModelConfig(abc.ABC):
         return "config:%s" % self.run_id
 
 
-class BaselineInceptionV3(ModelConfig):
+class BaselineInceptionV3(FeedForwardModelConfig):
     run_id = "baseline_inception3"
     epochs = 300
     batch_size = 8
@@ -50,11 +50,10 @@ class BaselineInceptionV3(ModelConfig):
     trainable_top_layers = True
     load_pretrained_inception_weights = True
 
-
     def __init__(self, config_override_dict):
         super().__init__(config_override_dict)
 
-        self.model = models.MedALInceptionV3(self)
+        self.model = models.InceptionV3(self)
         self.model.set_layers_trainable(
             inception_layers=self.trainable_inception_layers,
             top_layers=self.trainable_top_layers)
@@ -65,8 +64,8 @@ class BaselineInceptionV3(ModelConfig):
             self.model.parameters(), lr=self.learning_rate, eps=0.1,
             weight_decay=self.weight_decay, betas=(.9, .999))
         #  self.optimizer = torch.optim.SGD(
-            #  self.model.parameters(), lr=self.learning_rate, momentum=0.5,
-            #  weight_decay=self.weight_decay, nesterov=True)
+        #      self.model.parameters(), lr=self.learning_rate, momentum=0.5,
+        #      weight_decay=self.weight_decay, nesterov=True)
 
         self.dataset = datasets.Messidor(
             join(self.base_dir, "messidor/*.csv"),

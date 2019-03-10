@@ -1,5 +1,5 @@
 """
-Load datasets for MedAL
+Load datasets
 """
 import PIL.Image
 import glob
