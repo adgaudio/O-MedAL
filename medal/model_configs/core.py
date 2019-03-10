@@ -22,6 +22,7 @@ class FeedForwardModelConfig(abc.ABC):
     val_loader = NotImplemented
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    checkpoint_interval = 1  # save checkpoint during training every N epochs
 
     def __init__(self, config_override_dict):
         self.__dict__.update({k: v for k, v in config_override_dict.items()

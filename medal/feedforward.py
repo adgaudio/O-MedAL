@@ -40,7 +40,9 @@ def train_one_epoch(config, epoch):
 def train(config, epoch):
     for epoch in range(epoch, config.epochs + 1):
         train_loss, train_acc = train_one_epoch(config, epoch)
-        save_checkpoint(config, epoch)
+        if config.checkpoint_interval > 0\
+                and epoch % config.checkpoint_interval == 0:
+            save_checkpoint(config, epoch)
         val_loss, val_acc = test(config)
         print(
             "epoch", epoch, "train_loss", train_loss, "val_loss", val_loss,
