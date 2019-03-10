@@ -35,6 +35,9 @@ echo
 echo git status:
 git status
 echo
+echo git diff:
+git diff
+echo
 echo ======================
 echo
 echo
