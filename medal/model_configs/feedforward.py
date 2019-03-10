@@ -110,8 +110,20 @@ class FeedForwardModelConfig(abc.ABC):
 
     def load_checkpoint(self, check_loaded_all_available_data=True):
         extra_state = checkpointing.load_checkpoint(self)
-        if extra_state is None:  # no checkpoint found
+        if self.cur_epoch != 0:
+            if not isinstance(extra_state, dict):
+                raise Exception(
+                    "Could not find requested checkpoint at epoch: %s"
+                    % self.cur_epoch)
+            assert extra_state['epoch'], \
+                "bug: loaded incorrect checkpoint data"
+            if extra_state['epoch'] != self.cur_epoch:
+                raise Exception(
+                    "bug: Data inconsistency! Epoch stored in checkpoint"
+                    " does not match file loaded.")
+        elif extra_state is None:  # no checkpoint found
             return
         self.cur_epoch = extra_state.pop('epoch')
         if check_loaded_all_available_data:
             assert len(extra_state) == 0, extra_state
+        return extra_state
