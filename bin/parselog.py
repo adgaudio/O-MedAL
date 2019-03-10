@@ -213,12 +213,13 @@ def plot_learning_curve_over_al_iterations(
             df.query('perf'),
             col='al_iteration', col_wrap=np.round(np.sqrt(last_al_iteration)))\
             .map_dataframe(_plot_learning_curve).add_legend().fig
+        f.subplots_adjust(top=.85)
     else:
-        ax = df.query('perf').query('al_iteration == @last_al_iteration')[cols]\
-            .plot(title="for AL Iteration %s" % (last_al_iteration+1))
+        ax = df.query('perf')\
+            .query('al_iteration == @last_al_iteration')[cols]\
+            .plot()
         table = pd.plotting.table(
-            ax, df.query('perf')[cols].describe().round(4)\
-            .loc[['max', 'min']],
+            ax, df.query('perf')[cols].describe().round(4).loc[['max', 'min']],
             loc='lower center', colWidths=[0.2, 0.2, 0.2], alpha=.4)
         table.auto_set_font_size(False)
         f = ax.figure
@@ -238,7 +239,6 @@ def plot_learning_curve_over_al_iterations(
     #      title="for AL Iteration %s" % (last_al_iteration+1), ax=ax2)
 
     f.suptitle("%s vs Epoch" % col_suffix.capitalize())
-    f.subplots_adjust(top=.85)
     #  f.tight_layout(rect=[0, 0.03, 1, 0.95])
     f.savefig(join(img_dir, "%s_vs_epoch.png" % col_suffix))
 
