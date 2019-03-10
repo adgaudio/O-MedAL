@@ -6,10 +6,10 @@ import abc
 import torch
 import torch.optim
 
-from ..checkpointing import save_checkpoint
+from .. import checkpointing
 
 
-def train_one_epoch(config, epoch):
+def train_one_epoch(config):
     config.model.train()
     train_loss, train_correct, N = 0, 0, 0
     for batch_idx, (X, y) in enumerate(config.train_loader):
@@ -34,18 +34,19 @@ def train_one_epoch(config, epoch):
             # print output if batch_idx % config.log_interval == 0
             if batch_idx % 10 == 0:
                 print(
-                    '-->', 'epoch:', epoch, 'batch_idx', batch_idx,
+                    '-->', 'epoch:', config.cur_epoch, 'batch_idx', batch_idx,
                     'train_loss:', train_loss/N,
                     'train_acc', train_correct / N)
     return train_loss/N, train_correct/N
 
 
-def train(config, epoch):
-    for epoch in range(epoch, config.epochs + 1):
-        train_loss, train_acc = train_one_epoch(config, epoch)
+def train(config):
+    for epoch in range(config.cur_epoch + 1, config.epochs + 1):
+        config.cur_epoch = epoch
+        train_loss, train_acc = train_one_epoch(config)
         if config.checkpoint_interval > 0\
                 and epoch % config.checkpoint_interval == 0:
-            save_checkpoint(config, epoch)
+            checkpointing.save_checkpoint(config, dict(epoch=epoch))
         val_loss, val_acc = test(config)
         print(
             "epoch", epoch, "train_loss", train_loss, "val_loss", val_loss,
@@ -86,11 +87,17 @@ class FeedForwardModelConfig(abc.ABC):
     train_loader = NotImplemented
     val_loader = NotImplemented
 
-    def train(self, epoch):
-        return train(self, epoch)
+    def train(self):
+        return train(self)
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     checkpoint_interval = 1  # save checkpoint during training every N epochs
+    checkpoint_fname = "{config.run_id}/epoch_{config.cur_epoch}.pth"
+
+    # cur_epoch is updated as model trains and used to load checkpoint.
+    # the epoch number is actually 1 indexed.  By default, try to load the
+    # epoch 0 file, which won't exist unless you manually put it there.
+    cur_epoch = 0
 
     def __init__(self, config_override_dict):
         self.__dict__.update({k: v for k, v in config_override_dict.items()
@@ -100,3 +107,11 @@ class FeedForwardModelConfig(abc.ABC):
 
     def __repr__(self):
         return "config:%s" % self.run_id
+
+    def load_checkpoint(self, check_loaded_all_available_data=True):
+        extra_state = checkpointing.load_checkpoint(self)
+        if extra_state is None:  # no checkpoint found
+            return
+        self.cur_epoch = extra_state.pop('epoch')
+        if check_loaded_all_available_data:
+            assert len(extra_state) == 0, extra_state

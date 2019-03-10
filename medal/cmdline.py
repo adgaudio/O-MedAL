@@ -4,14 +4,13 @@ Tooling to initialize and run models from commandline
 import configargparse as ap
 import torch
 
-from .checkpointing import load_checkpoint
 from . import model_configs as MC
 
 
 def main(ns: ap.Namespace):
     """Initialize model and run from command-line"""
 
-    # load the model and config
+    # merge cmdline config with defaults
     config_overrides = ns.__dict__
     config = config_overrides.pop('modelconfig_class')(config_overrides)
     print('\n'.join(str((k, v)) for k, v in config.__dict__.items()
@@ -24,10 +23,9 @@ def main(ns: ap.Namespace):
         config.model = torch.nn.DataParallel(config.model)
     config.model.to(config.device)
 
-    epoch = load_checkpoint(config)
+    config.load_checkpoint()
 
-    # train the model
-    config.train(epoch)
+    config.train()
 
 
 def _add_subparser_find_configurable_attributes(kls):
@@ -64,8 +62,9 @@ def _add_subparser_arg(subparser, k, v, obj):
     elif isinstance(v, (list, tuple)):
         if all(isinstance(x, accepted_simple_types) for x in v):
             g.add_argument(
-                '--%s' % ku, nargs=len(v), type=type(v[0]), default=v,
-                help=' ')
+                '--%s' % ku, nargs=len(v), default=v, help=' ',
+                type=lambda inpt: type(types)(
+                    [typ(x) for typ, x in zip(types, inpt)]))
         else:
             g.add_argument('--%s' % ku, nargs=len(v), type=v[0])
     elif any(v is x for x in accepted_simple_types):
