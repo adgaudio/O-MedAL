@@ -94,5 +94,13 @@ def build_arg_parser():
     sp = p.add_subparsers(help='The model configuration to work with')
     sp.required = True
     sp.dest = 'model_configuration_name'
-    add_subparser(sp, 'baseline-inception', MC.BaselineInceptionV3)
+
+    for kls_name in dir(MC):
+        if kls_name.startswith("_"):
+            continue
+        # add all available model config classes as command line options
+        mc_obj = getattr(MC, kls_name)
+        if isinstance(mc_obj, type) \
+                and issubclass(mc_obj, MC.core.FeedForwardModelConfig):
+            add_subparser(sp, mc_obj.__name__, mc_obj)
     return p
