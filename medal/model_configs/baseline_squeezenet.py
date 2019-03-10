@@ -29,7 +29,7 @@ class BaselineSqueezeNet(FeedForwardModelConfig):
             squeezenet_layers=self.trainable_squeezenet_layers,
             top_layers=self.trainable_top_layers)
 
-        self.lossfn = torch.nn.modules.loss.BCELoss()
+        self.lossfn = torch.nn.modules.loss.BCEWithLogitsLoss()
 
         self.optimizer = torch.optim.SGD(
             self.model.parameters(), lr=self.learning_rate, momentum=0.5,
