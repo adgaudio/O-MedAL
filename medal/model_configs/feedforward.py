@@ -1,9 +1,12 @@
 """
-Functions to train and test feedforward networks using backprop
+Config and functions to train and test feedforward networks using backprop
 """
+from os.path import join
+import abc
 import torch
+import torch.optim
 
-from .checkpointing import save_checkpoint
+from ..checkpointing import save_checkpoint
 
 
 def train_one_epoch(config, epoch):
@@ -64,3 +67,36 @@ def test(config):
             correct += y.int().eq((yhat.view_as(y) > .5).int()).sum().item()
             N += batch_size
     return totloss/N, correct/N
+
+
+class FeedForwardModelConfig(abc.ABC):
+    run_id = str
+
+    batch_size = int
+    epochs = int
+
+    base_dir = './data'
+    checkpoint_dir = str
+    torch_model_dir = str
+
+    model = NotImplemented
+    optimizer = NotImplemented
+    lossfn = NotImplemented
+    dataset = NotImplemented
+    train_loader = NotImplemented
+    val_loader = NotImplemented
+
+    def train(self, epoch):
+        return train(self, epoch)
+
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    checkpoint_interval = 1  # save checkpoint during training every N epochs
+
+    def __init__(self, config_override_dict):
+        self.__dict__.update({k: v for k, v in config_override_dict.items()
+                              if v is not None})
+        self.checkpoint_dir = join(self.base_dir, 'model_checkpoints')
+        self.torch_model_dir = join(self.base_dir, 'torch/models')
+
+    def __repr__(self):
+        return "config:%s" % self.run_id

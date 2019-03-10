@@ -104,6 +104,6 @@ def build_arg_parser():
         # add all available model config classes as command line options
         mc_obj = getattr(MC, kls_name)
         if isinstance(mc_obj, type) \
-                and issubclass(mc_obj, MC.core.FeedForwardModelConfig):
+                and issubclass(mc_obj, MC.feedforward.FeedForwardModelConfig):
             add_subparser(sp, mc_obj.__name__, mc_obj)
     return p

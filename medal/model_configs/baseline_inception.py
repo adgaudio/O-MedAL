@@ -5,7 +5,7 @@ import torch.optim
 import torch.utils.data as TD
 import torchvision.transforms as tvt
 
-from .core import FeedForwardModelConfig
+from .feedforward import FeedForwardModelConfig
 from .. import datasets
 from .. import models
 
