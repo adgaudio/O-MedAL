@@ -6,17 +6,18 @@ import torch
 
 from .checkpointing import load_checkpoint
 from . import model_configs as MC
-from . import feedforward
 
 
 def main(ns: ap.Namespace):
     """Initialize model and run from command-line"""
+
+    # load the model and config
     config_overrides = ns.__dict__
     config = config_overrides.pop('modelconfig_class')(config_overrides)
-    # define the dataset
     print('\n'.join(str((k, v)) for k, v in config.__dict__.items()
                     if not k.startswith('__')))
 
+    # assign model to cuda device if necessary
     if config.device == 'cuda' and torch.cuda.device_count() > 1:
         print("Using", torch.cuda.device_count(), "GPUs")
         # dim = 0 [30, xxx] -> [10, ...], [10, ...], [10, ...] on 3 GPUs
@@ -24,7 +25,9 @@ def main(ns: ap.Namespace):
     config.model.to(config.device)
 
     epoch = load_checkpoint(config)
-    feedforward.train(config, epoch)
+
+    # train the model
+    config.train(epoch)
 
 
 def _add_subparser_find_configurable_attributes(kls):

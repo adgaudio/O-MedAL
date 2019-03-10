@@ -3,6 +3,8 @@ import abc
 import torch
 import torch.optim
 
+from .. import feedforward
+
 
 class FeedForwardModelConfig(abc.ABC):
     run_id = str
@@ -21,6 +23,9 @@ class FeedForwardModelConfig(abc.ABC):
     train_loader = NotImplemented
     val_loader = NotImplemented
 
+    def train(self, epoch):
+        return feedforward.train(self, epoch)
+
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     checkpoint_interval = 1  # save checkpoint during training every N epochs
 
@@ -32,5 +37,3 @@ class FeedForwardModelConfig(abc.ABC):
 
     def __repr__(self):
         return "config:%s" % self.run_id
-
-
