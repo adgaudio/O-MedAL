@@ -6,3 +6,4 @@ data/
 __pycache__
 .ropeproject
 *.egg-info/
+.tags
