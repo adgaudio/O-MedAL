@@ -205,6 +205,8 @@ def build_arg_parser():
     sp.required = True
     sp.dest = 'model_configuration_name'
     add_subparser(sp, 'baseline-inception', MC.BaselineInceptionV3)
+    add_subparser(sp, 'baseline-SqueezeNet', MC.BaselineSqueezeNet)
+
     return p
 
 
