@@ -9,7 +9,7 @@ from .. import models
 
 
 class BaselineInceptionV3(feedforward.FeedForwardModelConfig):
-    run_id = "baseline_inception3"
+    run_id = "baseline_inceptionv3"
     epochs = 300
     batch_size = 8
     learning_rate = 2e-4
