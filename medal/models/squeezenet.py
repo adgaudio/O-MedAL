@@ -5,7 +5,7 @@ import torchvision as tv
 from collections import OrderedDict
 
 
-class SqueezeNet(nn.Module):
+class SqueezeNetBinaryClassifier(nn.Module):
     squeezenet =  \
         'https://download.pytorch.org/models/squeezenet1_0-a815701f.pth'
 

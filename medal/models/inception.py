@@ -5,7 +5,7 @@ import torchvision as tv
 from collections import OrderedDict
 
 
-class InceptionV3(nn.Module):
+class InceptionV3BinaryClassifier(nn.Module):
     inception_v3_google = \
         'https://download.pytorch.org/models/inception_v3_google-1a9a5a14.pth'
 

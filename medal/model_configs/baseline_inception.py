@@ -22,7 +22,7 @@ class BaselineInceptionV3(feedforward.FeedForwardModelConfig):
     def __init__(self, config_override_dict):
         super().__init__(config_override_dict)
 
-        self.model = models.InceptionV3(self)
+        self.model = models.InceptionV3BinaryClassifier(self)
         self.model.set_layers_trainable(
             inception_layers=self.trainable_inception_layers,
             top_layers=self.trainable_top_layers)

@@ -22,7 +22,7 @@ class BaselineSqueezeNet(feedforward.FeedForwardModelConfig):
     def __init__(self, config_override_dict):
         super().__init__(config_override_dict)
 
-        self.model = models.SqueezeNet(self)
+        self.model = models.SqueezeNetBinaryClassifier(self)
         self.model.set_layers_trainable(
             squeezenet_layers=self.trainable_squeezenet_layers,
             top_layers=self.trainable_top_layers)
