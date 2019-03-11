@@ -52,8 +52,3 @@ class InceptionV3BinaryClassifier(nn.Module):
         x = x.mean((2, 3))
         x = self.top_layers(x)
         return x
-
-
-class MedalInceptionV3BinaryClassifier(InceptionV3BinaryClassifier):
-    def get_feature_embedding(self, x):
-        pass  # TODO
