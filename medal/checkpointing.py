@@ -62,3 +62,17 @@ def load_checkpoint(config):
     else:
         print("Did not restore a checkpoint.  No file matches: %s" % read_fp)
         return
+
+
+def ensure_consistent(extra_state, key, value):
+    """Check the state returned by load_checkpoint has given key and value
+    Raise an error if it is not consistent
+    """
+    if not isinstance(extra_state, dict):
+        raise Exception(
+            "Could not find requested checkpoint at %s: %s" % (key, value))
+    assert extra_state[key], "bug: loaded incorrect checkpoint data"
+    if extra_state[key] != value:
+        raise Exception((
+            "bug: Data inconsistency! %s stored in checkpoint"
+            " does not match file loaded.") % key)
