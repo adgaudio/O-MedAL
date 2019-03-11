@@ -65,3 +65,8 @@ class SqueezeNetBinaryClassifier(nn.Module):
         x = x.view(x.size(0), self.num_classes)
         # x = self.top_layers(x)
         return x
+
+
+class MedalSqueezeNetBinaryClassifier(SqueezeNetBinaryClassifier):
+    def get_feature_embedding(self, x):
+        pass  # TODO

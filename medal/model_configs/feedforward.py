@@ -88,12 +88,26 @@ class FeedForwardModelConfig(abc.ABC):
     checkpoint_dir = str
     torch_model_dir = str
 
-    model = NotImplemented
-    optimizer = NotImplemented
-    lossfn = NotImplemented
-    dataset = NotImplemented
-    train_loader = NotImplemented
-    val_loader = NotImplemented
+    @abc.abstractmethod
+    def get_model(self):
+        raise NotImplementedError("Your implementation here")
+
+    @abc.abstractmethod
+    def get_lossfn(self):
+        raise NotImplementedError("Your implementation here")
+
+    @abc.abstractmethod
+    def get_optimizer(self):
+        raise NotImplementedError("Your implementation here")
+
+    @abc.abstractmethod
+    def get_dataset(self):
+        raise NotImplementedError("Your implementation here")
+
+    @abc.abstractmethod
+    def get_data_loaders(self):
+        # return train_loader, val_loader
+        raise NotImplementedError("Your implementation here")
 
     def train(self):
         return train(self)
@@ -121,6 +135,12 @@ class FeedForwardModelConfig(abc.ABC):
                               if v is not None})
         self.checkpoint_dir = join(self.base_dir, 'model_checkpoints')
         self.torch_model_dir = join(self.base_dir, 'torch/models')
+
+        self.model = self.get_model()
+        self.lossfn = self.get_lossfn()
+        self.optimizer = self.get_optimizer()
+        self.dataset = self.get_dataset()
+        self.train_loader, self.val_loader = self.get_data_loaders()
 
     def __repr__(self):
         return "config:%s" % self.run_id

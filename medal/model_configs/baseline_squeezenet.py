@@ -8,7 +8,7 @@ from .. import datasets
 from .. import models
 
 
-class BaselineSqueezeNet(feedforward.FeedForwardModelConfig):
+class BaselineSqueezeNetBinaryClassifier(feedforward.FeedForwardModelConfig):
     run_id = "baseline_squeezenet"
     epochs = 300
     batch_size = 16
@@ -19,21 +19,23 @@ class BaselineSqueezeNet(feedforward.FeedForwardModelConfig):
     trainable_top_layers = True
     load_pretrained_squeezenet_weights = True
 
-    def __init__(self, config_override_dict):
-        super().__init__(config_override_dict)
-
-        self.model = models.SqueezeNetBinaryClassifier(self)
-        self.model.set_layers_trainable(
+    def get_model(self):
+        model = models.SqueezeNetBinaryClassifier(self)
+        model.set_layers_trainable(
             squeezenet_layers=self.trainable_squeezenet_layers,
             top_layers=self.trainable_top_layers)
+        return model
 
-        self.lossfn = torch.nn.modules.loss.BCEWithLogitsLoss()
+    def get_lossfn(self):
+        return torch.nn.modules.loss.BCEWithLogitsLoss()
 
-        self.optimizer = torch.optim.SGD(
+    def get_optimizer(self):
+        return torch.optim.SGD(
             self.model.parameters(), lr=self.learning_rate, momentum=0.5,
             weight_decay=self.weight_decay, nesterov=True)
 
-        self.dataset = datasets.Messidor(
+    def get_dataset(self):
+        return datasets.Messidor(
             join(self.base_dir, "messidor/*.csv"),
             join(self.base_dir, "messidor/**/*.tif"),
             img_transform=tvt.Compose([
@@ -49,7 +51,9 @@ class BaselineSqueezeNet(feedforward.FeedForwardModelConfig):
                 torch.tensor([float(x['Retinopathy grade'] != 0)]))
         )
 
+    def get_data_loaders(self):
         train_idxs, val_idxs = self.dataset.train_test_split(
             train_frac=self.train_frac)
-        self.train_loader = feedforward.create_data_loader(self, train_idxs)
-        self.val_loader = feedforward.create_data_loader(self, val_idxs)
+        return (
+            feedforward.create_data_loader(self, train_idxs),
+            feedforward.create_data_loader(self, val_idxs))

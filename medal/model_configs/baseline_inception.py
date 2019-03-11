@@ -8,7 +8,7 @@ from .. import datasets
 from .. import models
 
 
-class BaselineInceptionV3(feedforward.FeedForwardModelConfig):
+class BaselineInceptionV3BinaryClassifier(feedforward.FeedForwardModelConfig):
     run_id = "baseline_inceptionv3"
     epochs = 300
     batch_size = 8
@@ -19,24 +19,26 @@ class BaselineInceptionV3(feedforward.FeedForwardModelConfig):
     trainable_top_layers = True
     load_pretrained_inception_weights = True
 
-    def __init__(self, config_override_dict):
-        super().__init__(config_override_dict)
-
-        self.model = models.InceptionV3BinaryClassifier(self)
-        self.model.set_layers_trainable(
+    def get_model(self):
+        model = models.InceptionV3BinaryClassifier(self)
+        model.set_layers_trainable(
             inception_layers=self.trainable_inception_layers,
             top_layers=self.trainable_top_layers)
+        return model
 
-        self.lossfn = torch.nn.modules.loss.BCELoss()
+    def get_lossfn(self):
+        return torch.nn.modules.loss.BCELoss()
 
-        self.optimizer = torch.optim.Adam(
+    def get_optimizer(self):
+        return torch.optim.Adam(
             self.model.parameters(), lr=self.learning_rate, eps=0.1,
             weight_decay=self.weight_decay, betas=(.9, .999))
-        #  self.optimizer = torch.optim.SGD(
+        #  return torch.optim.SGD(
         #      self.model.parameters(), lr=self.learning_rate, momentum=0.5,
         #      weight_decay=self.weight_decay, nesterov=True)
 
-        self.dataset = datasets.Messidor(
+    def get_dataset(self):
+        return datasets.Messidor(
             join(self.base_dir, "messidor/*.csv"),
             join(self.base_dir, "messidor/**/*.tif"),
             img_transform=tvt.Compose([
@@ -52,7 +54,9 @@ class BaselineInceptionV3(feedforward.FeedForwardModelConfig):
                 torch.tensor([float(x['Retinopathy grade'] != 0)]))
         )
 
+    def get_data_loaders(self):
         train_idxs, val_idxs = self.dataset.train_test_split(
             train_frac=self.train_frac)
-        self.train_loader = feedforward.create_data_loader(self, train_idxs)
-        self.val_loader = feedforward.create_data_loader(self, val_idxs)
+        return (
+            feedforward.create_data_loader(self, train_idxs),
+            feedforward.create_data_loader(self, val_idxs))

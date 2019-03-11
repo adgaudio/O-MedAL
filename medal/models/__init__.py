@@ -1,2 +1,2 @@
-from .inception import InceptionV3
-from .squeezenet import SqueezeNet
+from .inception import InceptionV3BinaryClassifier
+from .squeezenet import SqueezeNetBinaryClassifier
