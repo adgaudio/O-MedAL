@@ -1,16 +1,14 @@
 from os.path import join
-import multiprocessing as mp
 import torch
 import torch.optim
-import torch.utils.data as TD
 import torchvision.transforms as tvt
 
-from .feedforward import FeedForwardModelConfig
+from . import feedforward
 from .. import datasets
 from .. import models
 
 
-class BaselineSqueezeNet(FeedForwardModelConfig):
+class BaselineSqueezeNet(feedforward.FeedForwardModelConfig):
     run_id = "baseline_SqueezeNet"
     epochs = 300
     batch_size = 16
@@ -51,19 +49,7 @@ class BaselineSqueezeNet(FeedForwardModelConfig):
                 torch.tensor([float(x['Retinopathy grade'] != 0)]))
         )
 
-        data_loader_num_workers = max(1, mp.cpu_count()//2 - 1)
         train_idxs, val_idxs = self.dataset.train_test_split(
-            train_frac=self.train_frac,
-            random_state=0)
-
-        self.train_loader = TD.DataLoader(
-            self.dataset,
-            batch_size=self.batch_size,
-            sampler=TD.SubsetRandomSampler(train_idxs),
-            pin_memory=True, num_workers=data_loader_num_workers
-        )
-        self.val_loader = TD.DataLoader(
-            self.dataset,
-            batch_size=self.batch_size,
-            sampler=TD.SubsetRandomSampler(val_idxs),
-        )
+            train_frac=self.train_frac)
+        self.train_loader = feedforward.create_data_loader(self, train_idxs)
+        self.val_loader = feedforward.create_data_loader(self, val_idxs)

@@ -3,10 +3,21 @@ Config and functions to train and test feedforward networks using backprop
 """
 from os.path import join
 import abc
+import multiprocessing as mp
 import torch
 import torch.optim
+import torch.utils.data as TD
 
 from .. import checkpointing
+
+
+def create_data_loader(config, idxs):
+    return TD.DataLoader(
+        config.dataset,
+        batch_size=config.batch_size,
+        sampler=TD.SubsetRandomSampler(idxs),
+        pin_memory=True, num_workers=config.data_loader_num_workers
+    )
 
 
 def train_one_epoch(config):
@@ -98,6 +109,8 @@ class FeedForwardModelConfig(abc.ABC):
     # the epoch number is actually 1 indexed.  By default, try to load the
     # epoch 0 file, which won't exist unless you manually put it there.
     cur_epoch = 0
+
+    data_loader_num_workers = max(1, mp.cpu_count()//2 - 1)
 
     def __init__(self, config_override_dict):
         self.__dict__.update({k: v for k, v in config_override_dict.items()
