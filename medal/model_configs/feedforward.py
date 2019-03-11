@@ -22,7 +22,7 @@ def create_data_loader(config, idxs):
 
 def train_one_epoch(config):
     config.model.train()
-    train_loss, train_correct, N = 0, 0, 0
+    _train_loss, _train_correct, N = 0, 0, 0
     for batch_idx, (X, y) in enumerate(config.train_loader):
         if X.shape[0] != config.batch_size:
             #  print("Skipping end of batch", X.shape)
@@ -37,18 +37,17 @@ def train_one_epoch(config):
         with torch.no_grad():
             batch_size = X.shape[0]
             _loss = loss.item() * batch_size
-            train_loss += _loss
+            _train_loss += _loss
             _correct = y.int().eq((yhat.view_as(y) > .5).int()).sum().item()
-            train_correct += _correct
+            _train_correct += _correct
             N += batch_size
 
             # print output if batch_idx % config.log_interval == 0
             if batch_idx % 10 == 0:
-                print(
-                    '-->', 'epoch:', config.cur_epoch, 'batch_idx', batch_idx,
-                    'train_loss:', train_loss/N,
-                    'train_acc', train_correct / N)
-    return train_loss/N, train_correct/N
+                print(config.log_msg_minibatch.format(
+                    train_loss=_train_loss/N, train_acc=_train_correct/N,
+                    **locals()))
+    return _train_loss/N, _train_correct/N
 
 
 def train(config):
@@ -59,9 +58,7 @@ def train(config):
                 and epoch % config.checkpoint_interval == 0:
             checkpointing.save_checkpoint(config, dict(epoch=epoch))
         val_loss, val_acc = test(config)
-        print(
-            "epoch", epoch, "train_loss", train_loss, "val_loss", val_loss,
-            "train_acc", train_acc, "val_acc", val_acc)
+        print(config.log_msg_epoch.format(**locals()))
 
 
 def test(config):
@@ -111,6 +108,13 @@ class FeedForwardModelConfig(abc.ABC):
     cur_epoch = 0
 
     data_loader_num_workers = max(1, mp.cpu_count()//2 - 1)
+    log_msg_epoch = (
+        "epoch {config.cur_epoch} "
+        "train_loss {train_loss} val_loss {val_loss} "
+        "train_acc {train_acc} val_acc {val_acc}")
+    log_msg_minibatch = (
+        "--> epoch {config.cur_epoch} batch_idx {batch_idx} "
+        "train_loss {train_loss} train_acc {train_acc}")
 
     def __init__(self, config_override_dict):
         self.__dict__.update({k: v for k, v in config_override_dict.items()
