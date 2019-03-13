@@ -11,11 +11,17 @@ import torch.utils.data as TD
 from .. import checkpointing
 
 
-def create_data_loader(config, idxs):
+def create_data_loader(config, idxs, shuffle=True):
+    if shuffle:
+        sampler = TD.SubsetRandomSampler(idxs)
+        dataset = config.dataset
+    else:
+        sampler = TD.SequentialSampler(idxs)
+        dataset = TD.Subset(config.dataset, idxs)
     return TD.DataLoader(
-        config.dataset,
+        dataset,
         batch_size=config.batch_size,
-        sampler=TD.SubsetRandomSampler(idxs),
+        sampler=sampler,
         pin_memory=True, num_workers=config.data_loader_num_workers
     )
 
