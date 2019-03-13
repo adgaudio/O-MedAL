@@ -30,9 +30,9 @@ def train_one_epoch(config):
     config.model.train()
     _train_loss, _train_correct, N = 0, 0, 0
     for batch_idx, (X, y) in enumerate(config.train_loader):
-        if X.shape[0] != config.batch_size:
+        #  if X.shape[0] != config.batch_size:
             #  print("Skipping end of batch", X.shape)
-            continue
+            #  continue
         X, y = X.to(config.device), y.to(config.device)
         config.optimizer.zero_grad()
         yhat = config.model(X)
@@ -63,7 +63,11 @@ def train(config):
         if config.checkpoint_interval > 0\
                 and epoch % config.checkpoint_interval == 0:
             checkpointing.save_checkpoint(config, dict(epoch=epoch))
-        val_loss, val_acc = test(config)
+        if config.val_perf_interval > 0\
+                and epoch % config.val_perf_interval == 0:
+            val_loss, val_acc = test(config)
+        else:
+            val_loss, val_acc = None, None
         print(config.log_msg_epoch.format(**locals()))
 
 
@@ -121,6 +125,8 @@ class FeedForwardModelConfig(abc.ABC):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     checkpoint_interval = 1  # save checkpoint during training every N epochs
     checkpoint_fname = "{config.run_id}/epoch_{config.cur_epoch}.pth"
+
+    val_perf_interval = 1  # compute validation acc/loss after every N epochs
 
     # cur_epoch is updated as model trains and used to load checkpoint.
     # the epoch number is actually 1 indexed.  By default, try to load the
