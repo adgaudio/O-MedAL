@@ -108,6 +108,8 @@ cat <<EOF | sh
 log_initial_msgs $run_id
 echo "$cmd"
 $cmd
+echo job finished
+date
 EOF
 }
 function run_cmd_and_log() {
