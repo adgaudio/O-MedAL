@@ -9,7 +9,7 @@ bridges_user=${1}
 cd "$(dirname "$(dirname "$(readlink -f "$0")")")"
 
 # copy data
-fps="$(rsync -ae ssh --out-format="%f\n" $bridges_user@data.bridges.psc.edu:/pylon5/ci4s8dp/$bridges_user/medal_improvements/data/log ./data/)"
+fps="$(rsync -ae ssh -k --out-format="%f\n" $bridges_user@data.bridges.psc.edu:/pylon5/ci4s8dp/$bridges_user/medal_improvements/data/log ./data/)"
 echo fetched:
 echo -e $fps
 
