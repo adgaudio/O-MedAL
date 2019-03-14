@@ -75,3 +75,27 @@ function use_lockfile() {
 }
 
 
+function log_initial_msgs() {(
+  set -e
+  set -u
+  run_id=$1
+  echo "Running on hostname: $(hostname)"
+  echo "run_id: ${run_id}"
+  date
+
+  # print out current configuration
+  echo ======================
+  echo CURRENT GIT CONFIGURATION:
+  echo "git commit: $(git rev-parse HEAD)"
+  echo
+  echo git status:
+  git status
+  echo
+  echo git diff:
+  git --no-pager diff --cached
+  git --no-pager diff
+  echo
+  echo ======================
+  echo
+  echo
+)}

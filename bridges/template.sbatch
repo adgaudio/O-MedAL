@@ -23,24 +23,7 @@ set -u
 source ./bin/bash_lib.sh
 use_lockfile {{lockfile_path}} {{lockfile_runonce}}
 
-echo "Running MedAL on hostname: $(hostname)"
-echo "run_id: {{run_id}}"
-date
-
-# print out current configuration
-echo ======================
-echo CURRENT GIT CONFIGURATION:
-echo "git commit: $(git rev-parse HEAD)"
-echo
-echo git status:
-git status
-echo
-echo git diff:
-git diff
-echo
-echo ======================
-echo
-echo
+log_initial_msgs {{run_id}}
 
 python -m medal {{python_args}} --run-id {{run_id}}
 
