@@ -14,7 +14,7 @@ def main(ns: ap.Namespace):
     config_overrides = ns.__dict__
     config = config_overrides.pop('modelconfig_class')(config_overrides)
     print('\n'.join(str((k, v)) for k, v in config.__dict__.items()
-                    if not k.startswith('__')))
+                    if not k.startswith('_')))
 
     # assign model to cuda device if necessary
     if config.device == 'cuda' and torch.cuda.device_count() > 1:

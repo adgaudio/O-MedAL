@@ -3,7 +3,7 @@ Config and functions to train and test feedforward networks using backprop
 """
 from os.path import join
 import abc
-import multiprocessing as mp
+import torch.multiprocessing as mp
 import torch
 import torch.optim
 import torch.utils.data as TD
