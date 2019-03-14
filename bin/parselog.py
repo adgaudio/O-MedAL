@@ -26,10 +26,10 @@ class KerasConfig(LogType):
     regexes_data_shared_across_rows = [
         r'^Epoch (?P<epoch>\d+)/\d+ *$',
         (r'^Performing Active learning iteration '
-         r'(?P<al_iteration>\d+) for method '),
+         r'(?P<al_iter>\d+) for method '),
     ]
     _regex_perf = (
-            r'^ *(?P<iteration>\d+)/\d+ \[[=\.>]+\] - .*'
+            r'^ *(?P<batch_idx>\d+)/\d+ \[[=\.>]+\] - .*'
             r'loss: (?P<train_loss>\d+\.\d+(e-?\d+)?) - '
             r'acc: (?P<train_acc>\d+.\d+(e-?\d+)?)'
         )
@@ -44,24 +44,25 @@ class KerasConfig(LogType):
 
 
 class AlexMedALConfig(LogType):
-    _epoch = r"^epoch\s+(?P<epoch>\d+)\s+"
-    _batch_idx = r"^batch_idx\s+(?P<batch_idx>\d+)\s+"
+    _epoch = r"epoch\s+(?P<epoch>\d+)\s+"
+    _batch_idx = r"batch_idx\s+(?P<batch_idx>\d+)\s+"
     _train_loss = r"train_loss\s+(?P<train_loss>\d+\.\d+(e-?\d+)?)\s+"
     _val_loss = r"val_loss\s+(?P<val_loss>\d+\.\d+(e-?\d+)?)\s+"
     _train_acc = r"train_acc\s+(?P<train_acc>\d+\.\d+(e-?\d+)?)\s+"
     _val_acc = r"val_acc\s+(?P<val_acc>\d+\.\d+(e-?\d+)?)\s*"
+    _al_iter = r"(al_iter\s+(?P<al_iter>\d+)\s*)?"
 
     regexes_data_shared_across_rows = [
-        r'Begin Active Learning Iteration (/P<al_iteration>\d+)'
     ]
 
     regexes_data_of_a_row = [
         # given a line, try these regexes in sequence.  if a match is found,
         # save the data from the captured group as a row and stop evaluating
         # the rest of the regexes in the list.
-        (r'^' + _epoch + _train_loss + _val_loss + _train_acc + _val_acc +
-         '$'),
-        (r'^-->\s+' + _epoch + _train_loss + _train_acc + '$'),
+        (r'^' + _al_iter + _epoch + _train_loss + _val_loss + _train_acc +
+         _val_acc + '$'),
+        (r'^-->\s+' + _al_iter + _epoch + _batch_idx + _train_loss + _train_acc
+         + '$'),
     ]
 
 
@@ -72,7 +73,7 @@ class KartikMedALConfig(LogType):
     _val_loss = r"Test Loss:\s+(?P<val_loss>\d+\.\d+(e-?\d+)?)\s+"
     _val_acc = r"Test Accuracy:\s+(?P<val_acc>\d+\.\d+(e-?\d+)?)\s*"
     regexes_data_shared_across_rows = [
-        #  r'Begin Active Learning Iteration (/P<al_iteration>\d+)'
+        #  r'Begin Active Learning Iteration (/P<al_iter>\d+)'
     ]
 
     regexes_data_of_a_row = [
@@ -82,13 +83,13 @@ class KartikMedALConfig(LogType):
 
 
 SCHEMA = {
-    'iteration': int,
+    'batch_idx': int,
     'train_loss': float,
     'train_acc': float,
     'epoch': int,
     'val_loss': float,
     'val_acc': float,
-    'al_iteration': int,
+    'al_iter': int,
     # TODO: train_set_size, oracle_set_size, true_pos_count, true_neg_count
 }
 
@@ -128,47 +129,47 @@ def _parse_log_sanitize_and_clean(df):
     df = df.copy()
     assert not df.empty, "Error parsing the log file.  Found no usable data."
     df['perf'] = ~df['val_acc'].isnull()
-    if df['al_iteration'].isnull().all():
-        df['al_iteration'] = df['al_iteration'].fillna(0)
+    if df['al_iter'].isnull().all():
+        df['al_iter'] = df['al_iter'].fillna(0)
 
     # sanity check
     # hack to ignore redundant log data when model stops and is resumed
-    tmp = df.query('perf').groupby(['al_iteration'])['epoch'].count()
+    tmp = df.query('perf').groupby(['al_iter'])['epoch'].count()
     bad_i = tmp.index[tmp > tmp.mode()[0]]
     if not bad_i.empty:
-        print("--> Problem at al_iteration(s):  %s.  "
+        print("--> Problem at al_iter(s):  %s.  "
               "Found redundancy in log data (from re-running model and "
-              "restarting an AL iteration). Ignoring earlier part of the "
+              "restarting an AL iter). Ignoring earlier part of the "
               "redundant data, since it wasn't used to continue training."
               % bad_i.values)
         for i in bad_i.values:
-            start_idx = df.query('al_iteration == @i').index[0]
-            _tmp = df.query('al_iteration == @i')
+            start_idx = df.query('al_iter == @i').index[0]
+            _tmp = df.query('al_iter == @i')
             stop_idx = _tmp['epoch'].diff().idxmin() - 1
             df.drop(df.loc[start_idx:stop_idx].index, inplace=True)
 
     # hack: ignore end of log data if it's incomplete
-    if df['al_iteration'].unique().shape[0] > 1:
-        if (df.groupby('al_iteration')['epoch']
+    if df['al_iter'].unique().shape[0] > 1:
+        if (df.groupby('al_iter')['epoch']
                 .count().diff().tail(1) < 1).all():
-            print("--> Dropping last al_iteration, since it was incomplete")
-            _last_iter = df['al_iteration'].max()
-            df.drop(df[df['al_iteration'] == _last_iter].index, inplace=True)
+            print("--> Dropping last al_iter, since it was incomplete")
+            _last_iter = df['al_iter'].max()
+            df.drop(df[df['al_iter'] == _last_iter].index, inplace=True)
 
     # sanity check
-    tmp = df.query('perf').groupby(['al_iteration'])['epoch'].count()
+    tmp = df.query('perf').groupby(['al_iter'])['epoch'].count()
     if tmp.shape[0] > 1:
         assert 0 == tmp.var(), "bug trying to ignore redundant data"
 
     # sanity check data:
     assert (df['val_acc'].isnull() == df['val_loss'].isnull()).all()
-    each_epoch_of_an_al_iteration_is_completed = \
-        df.groupby(['al_iteration', 'epoch'])['iteration']\
+    each_epoch_of_an_al_iter_is_completed = \
+        df.groupby(['al_iter', 'epoch'])['batch_idx']\
         .agg(lambda x: x.count() == x.count().max()).all()
-    if not each_epoch_of_an_al_iteration_is_completed:
+    if not each_epoch_of_an_al_iter_is_completed:
         print(
             "\n\nWARNING: \n Run may not have completed successfully."
-            " At least one epoch does not have enough iterations\n")
+            " At least one epoch does not have enough batch_idxs\n")
     return df
 
 
@@ -196,27 +197,27 @@ def parse_log_files(fps_in, log_type=None):
     return df
 
 
-def plot_learning_curve_over_al_iterations(
-        img_dir, df, col_suffix, last_al_iteration, selected_al_iters):
+def plot_learning_curve_over_al_iters(
+        img_dir, df, col_suffix, last_al_iter, selected_al_iters):
     """col_suffix is either "loss" or "acc" """
     f, (ax1, ax2) = plt.subplots(2, 1)
 
     cols = ['train_%s' % col_suffix, 'val_%s' % col_suffix]
-    #  data = df.query('perf').query('al_iteration in @selected_al_iters')
+    #  data = df.query('perf').query('al_iter in @selected_al_iters')
 
     def _plot_learning_curve(*args, **kws):
         data = kws.pop('data')
         data[cols].plot(style='-', linewidth=.5, use_index=False, ax=plt.gca())
 
-    if last_al_iteration > 0:
+    if last_al_iter > 0:
         f = sns.FacetGrid(
-            df.query('perf'),
-            col='al_iteration', col_wrap=np.round(np.sqrt(last_al_iteration)))\
+            df.query('perf').drop('batch_idx', axis=1),
+            col='al_iter', col_wrap=np.round(np.sqrt(last_al_iter)))\
             .map_dataframe(_plot_learning_curve).add_legend().fig
         f.subplots_adjust(top=.85)
     else:
         ax = df.query('perf')\
-            .query('al_iteration == @last_al_iteration')[cols]\
+            .query('al_iter == @last_al_iter')[cols]\
             .plot()
         table = pd.plotting.table(
             ax, df.query('perf')[cols].describe().round(4).loc[['max', 'min']],
@@ -224,19 +225,19 @@ def plot_learning_curve_over_al_iterations(
         table.auto_set_font_size(False)
         f = ax.figure
 
-    # plot train and val  loss|acc for every epoch of given al iteration.
-    # only show some al iterations
+    # plot train and val  loss|acc for every epoch of given al iter.
+    # only show some al iters
     #  data[cols].plot(
-    #          title="for %s of %s AL iterations" % (
-    #              len(selected_al_iters), last_al_iteration+1),
+    #          title="for %s of %s AL iters" % (
+    #              len(selected_al_iters), last_al_iter+1),
     #          style='-', linewidth=.5, use_index=False, ax=ax1)
     #  ax1.vlines(
-    #      np.bincount(data['al_iteration'].values).cumsum(),
+    #      np.bincount(data['al_iter'].values).cumsum(),
     #      *ax1.get_ylim(), linestyle='--', alpha=.5)
 
-    #  # plot only the last al iteration
-    #  df.query('perf').query('al_iteration == @last_al_iteration')[cols].plot(
-    #      title="for AL Iteration %s" % (last_al_iteration+1), ax=ax2)
+    #  # plot only the last al iter
+    #  df.query('perf').query('al_iter == @last_al_iter')[cols].plot(
+    #      title="for AL Iter %s" % (last_al_iter+1), ax=ax2)
 
     f.suptitle("%s vs Epoch" % col_suffix.capitalize())
     #  f.tight_layout(rect=[0, 0.03, 1, 0.95])
@@ -247,43 +248,43 @@ def plot_heatmap(img_dir, df, values_col, values_col_name_for_title,
                  selected_al_iters):
     def make_heatmap(values_col, *args, **kwargs):
         dat = kwargs.pop('data')
-        d = dat.pivot('iteration', 'epoch', values_col)
+        d = dat.pivot('batch_idx', 'epoch', values_col)
         sns.heatmap(d, *args, **kwargs)
 
     f = sns.FacetGrid(
-        df.query('al_iteration in @selected_al_iters'),
-        row='al_iteration', dropna=False, margin_titles=True, aspect=4,
+        df.query('al_iter in @selected_al_iters'),
+        row='al_iter', dropna=False, margin_titles=True, aspect=4,
         sharey=False)\
         .map_dataframe(make_heatmap, values_col, cbar=False)
 
     f.fig.suptitle(
-        "%s as we vary Epoch and Iteration" % values_col_name_for_title)
-    f.set_axis_labels("Epoch", "Iteration")
-    #  f.set_ylabels("Iteration")
+        "%s as we vary Epoch and Batch index" % values_col_name_for_title)
+    f.set_axis_labels("Epoch", "Batch index")
+    #  f.set_ylabels("Iter")
     f.fig.tight_layout(rect=[0, 0.03, 1, 0.95])
-    f.savefig(join(img_dir, "iteration_vs_epoch_%s.png" % values_col))
+    f.savefig(join(img_dir, "batch_idx_vs_epoch_%s.png" % values_col))
 
 
-def plot_heatmap_at_al_iter(img_dir, df, al_iteration):
-    df = df.query('al_iteration == @al_iteration')
+def plot_heatmap_at_al_iter(img_dir, df, al_iter):
+    df = df.query('al_iter == @al_iter')
     f, (ax1, ax2) = plt.subplots(2, 1)
-    f.suptitle("Epoch vs Iteration on AL Iteration %s: Train Performance"
-               % (al_iteration+1))
+    f.suptitle("Epoch vs Batch on AL Iter %s: Train Performance"
+               % (al_iter+1))
     ax1.set_title("Training Accuracy")
-    sns.heatmap(df.pivot('iteration', 'epoch', 'train_acc'), ax=ax1)
+    sns.heatmap(df.pivot('batch_idx', 'epoch', 'train_acc'), ax=ax1)
     ax2.set_title("Training Loss")
-    sns.heatmap(df.pivot('iteration', 'epoch', 'train_loss'), ax=ax2)
+    sns.heatmap(df.pivot('batch_idx', 'epoch', 'train_loss'), ax=ax2)
     f.tight_layout(rect=[0, 0.03, 1, 0.95])
     f.savefig(join(img_dir,
-                   "iteration_vs_epoch_al_iter_%s.png" % (al_iteration+1)))
+                   "batch_idx_vs_epoch_al_iter_%s.png" % (al_iter+1)))
 
 
-def plot_quantile_perf_across_al_iterations(img_dir, df):
-    # TODO: these plots can be deceptive since at each AL iteration, there are
-    # more iterations and therefore the probability of a higher .9 and a lower
-    # .1 increases as AL iteration increases.  maybe can normalize for this
+def plot_quantile_perf_across_al_iters(img_dir, df):
+    # TODO: these plots can be deceptive since at each AL iter, there are
+    # more batch_idxs and therefore the probability of a higher .9 and a lower
+    # .1 increases as AL iter increases.  maybe can normalize for this
     # probability?
-    al_perf = df.groupby('al_iteration')[
+    al_perf = df.groupby('al_iter')[
         ['val_acc', 'val_loss', 'train_acc', 'train_loss']]\
         .quantile([0, .1, .25, .5, .75, .9, 1]).unstack()
     al_perf.columns.names = ('variable', 'quantile')
@@ -296,7 +297,7 @@ def plot_quantile_perf_across_al_iterations(img_dir, df):
             al_perf[(cols[1], quantile)].plot(
                 title="Quantile: %s, %s" % (quantile, cols[1]), ax=axss[1])
 
-        f.suptitle("Quantile %s of model across AL iterations" % name)
+        f.suptitle("Quantile %s of model across AL iters" % name)
         f.tight_layout(rect=[0, 0.03, 1, 0.95])
         f.savefig(join(
             img_dir, "quantile_%s_across_al_iter.png" % name.lower()))
@@ -323,13 +324,13 @@ if __name__ == "__main__":
 
     print("Generating several plots...")
 
-    last_al_iter = df['al_iteration'].max()
+    last_al_iter = df['al_iter'].max()
     selected_al_iters = np.unique(np.linspace(0, last_al_iter, 6, dtype='int'))
 
     # learning curves
-    plot_learning_curve_over_al_iterations(
+    plot_learning_curve_over_al_iters(
         config.output_dir, df, 'loss', last_al_iter, selected_al_iters)
-    plot_learning_curve_over_al_iterations(
+    plot_learning_curve_over_al_iters(
         config.output_dir, df, 'acc', last_al_iter, selected_al_iters)
 
     # how learning progresses over time.
@@ -342,4 +343,4 @@ if __name__ == "__main__":
 
     # AL performance over time
     if last_al_iter > 0:
-        plot_quantile_perf_across_al_iterations(config.output_dir, df)
+        plot_quantile_perf_across_al_iters(config.output_dir, df)
