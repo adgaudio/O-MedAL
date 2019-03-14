@@ -99,3 +99,20 @@ function log_initial_msgs() {(
   echo
   echo
 )}
+
+function run_cmd() {
+  run_id="$1"
+  cmd="$2"
+  export -f log_initial_msgs
+cat <<EOF | sh
+log_initial_msgs $run_id
+echo "$cmd"
+$cmd
+EOF
+}
+function run_cmd_and_log() {
+  run_id="$1"
+  cmd="$2"
+  log_fp="./data/log/$run_id-`date +%Y%m%dT%H%M%S`"
+  run_cmd "$run_id" "$cmd" 2>&1 | tee $log_fp
+}
