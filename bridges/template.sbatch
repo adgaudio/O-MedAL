@@ -23,9 +23,12 @@ set -u
 source ./bin/bash_lib.sh
 use_lockfile {{lockfile_path}} {{lockfile_runonce}}
 
-log_initial_msgs {{run_id}}
+cmd="python -m medal {{python_args}} --run-id {{run_id}}"
+echo "$cmd"
 
-python -m medal {{python_args}} --run-id {{run_id}}
+log_initial_msgs "{{run_id}}"
+
+$cmd
 
 echo sbatch job finished
 date
