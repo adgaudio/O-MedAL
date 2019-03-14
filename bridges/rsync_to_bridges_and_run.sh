@@ -84,6 +84,7 @@ EOF
 
 elif [ "$mode" = "sbatch" ] ; then
   mkdir -p data/tmp/sbatch
+  mkdir -p data/run/
 
   sbatch_fp="data/tmp/sbatch/$run_id-$curtime.sbatch"
 
