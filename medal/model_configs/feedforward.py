@@ -48,8 +48,9 @@ def train_one_epoch(config):
             _train_correct += _correct
             N += batch_size
 
-            # print output if batch_idx % config.log_interval == 0
-            if batch_idx % 10 == 0:
+            # log train performance of the batch every so often
+            if batch_idx % config.log_msg_minibatch_interval \
+                    == config.log_msg_minibatch_interval - 1:
                 print(config.log_msg_minibatch.format(
                     train_loss=_train_loss/N, train_acc=_train_correct/N,
                     **locals()))
@@ -127,6 +128,7 @@ class FeedForwardModelConfig(abc.ABC):
     checkpoint_fname = "{config.run_id}/epoch_{config.cur_epoch}.pth"
 
     val_perf_interval = 1  # compute validation acc/loss after every N epochs
+    log_msg_minibatch_interval = 10  # log train perf every Nth batch_idx
 
     # cur_epoch is updated as model trains and used to load checkpoint.
     # the epoch number is actually 1 indexed.  By default, try to load the
