@@ -10,9 +10,9 @@ from .. import models
 
 class BaselineResnet18BinaryClassifier(feedforward.FeedForwardModelConfig):
     run_id = "baseline_Resnet18"
-    epochs = 300
-    batch_size = 8
-    learning_rate = 2e-4
+    epochs = 100
+    batch_size = 48
+    learning_rate = 0.001
     train_frac = .8
     weight_decay = 0.01
     trainable_resnet_layers = True
@@ -30,9 +30,14 @@ class BaselineResnet18BinaryClassifier(feedforward.FeedForwardModelConfig):
         return torch.nn.modules.loss.BCEWithLogitsLoss()
 
     def get_optimizer(self):
-        return torch.optim.Adam(
-            self.model.parameters(), lr=self.learning_rate, eps=0.1,
-            weight_decay=self.weight_decay, betas=(.9, .999))
+        return torch.optim.SGD(
+            self.model.parameters(),
+            momentum=0.9, lr=self.learning_rate,
+            weight_decay=self.weight_decay, nesterov=True)
+
+        #  return torch.optim.Adam(
+            #  self.model.parameters(), lr=self.learning_rate, eps=0.1,
+            #  weight_decay=self.weight_decay, betas=(.9, .999))
 
     def get_dataset(self):
         return datasets.Messidor(
