@@ -43,12 +43,12 @@ class KerasConfig(LogType):
     ]
 
 
-class AlexMedALConfig(LogType):
+class MedALConfig(LogType):
     _epoch = r"epoch\s+(?P<epoch>\d+)\s+"
     _batch_idx = r"batch_idx\s+(?P<batch_idx>\d+)\s+"
     _train_loss = r"train_loss\s+(?P<train_loss>\d+\.\d+(e-?\d+)?)\s+"
     _val_loss = r"val_loss\s+(?P<val_loss>\d+\.\d+(e-?\d+)?)\s+"
-    _train_acc = r"train_acc\s+(?P<train_acc>\d+\.\d+(e-?\d+)?)\s+"
+    _train_acc = r"train_acc\s+(?P<train_acc>\d+\.\d+(e-?\d+)?)\s*"
     _val_acc = r"val_acc\s+(?P<val_acc>\d+\.\d+(e-?\d+)?)\s*"
     _al_iter = r"(al_iter\s+(?P<al_iter>\d+)\s*)?"
 
@@ -66,20 +66,13 @@ class AlexMedALConfig(LogType):
     ]
 
 
-class KartikMedALConfig(LogType):
-    _epoch = r"^Epochs:\s+(?P<epoch>\d+)\s+"
-    _train_loss = r"Train Loss:\s+(?P<train_loss>\d+\.\d+(e-?\d+)?)\s+"
-    _train_acc = r"Train Accuracy:\s+(?P<train_acc>\d+\.\d+(e-?\d+)?)\s+"
-    _val_loss = r"Test Loss:\s+(?P<val_loss>\d+\.\d+(e-?\d+)?)\s+"
-    _val_acc = r"Test Accuracy:\s+(?P<val_acc>\d+\.\d+(e-?\d+)?)\s*"
-    regexes_data_shared_across_rows = [
-        #  r'Begin Active Learning Iteration (/P<al_iter>\d+)'
-    ]
+class Optional:
+    def __init__(self, typ):
+        self.typ = typ
 
-    regexes_data_of_a_row = [
-        (r'^' + _epoch + _train_loss + _train_acc + _val_loss + _val_acc +
-         '$'),
-    ]
+    def __call__(self, x):
+        if x is not None:
+            return self.typ(x)
 
 
 SCHEMA = {
@@ -89,7 +82,7 @@ SCHEMA = {
     'epoch': int,
     'val_loss': float,
     'val_acc': float,
-    'al_iter': int,
+    'al_iter': Optional(int),
     # TODO: train_set_size, oracle_set_size, true_pos_count, true_neg_count
 }
 
@@ -183,13 +176,15 @@ def parse_log_files(fps_in, log_type=None):
     if log_type is not None:
         return _parse_log_files(fps_in, log_type)
 
-    for log_type in [KerasConfig, AlexMedALConfig, KartikMedALConfig]:
+    for log_type in [MedALConfig, KerasConfig]:
         df = None
         try:
             df = _parse_log_files(fps_in, log_type)
+            print('--', log_type.__name__, "successfully parsed log file")
             assert not df.empty
             break
-        except Exception:
+        except Exception as e:
+            print('--', log_type.__name__, e)
             pass
     if df is None:
         raise Exception("Could not figure out how to parse the given log"
@@ -252,7 +247,7 @@ def plot_heatmap(img_dir, df, values_col, values_col_name_for_title,
         sns.heatmap(d, *args, **kwargs)
 
     f = sns.FacetGrid(
-        df.query('al_iter in @selected_al_iters'),
+        df.query('not perf and al_iter in @selected_al_iters'),
         row='al_iter', dropna=False, margin_titles=True, aspect=4,
         sharey=False)\
         .map_dataframe(make_heatmap, values_col, cbar=False)
@@ -266,10 +261,11 @@ def plot_heatmap(img_dir, df, values_col, values_col_name_for_title,
 
 
 def plot_heatmap_at_al_iter(img_dir, df, al_iter):
-    df = df.query('al_iter == @al_iter')
+    df = df.query('not perf and al_iter == @al_iter')
     f, (ax1, ax2) = plt.subplots(2, 1)
-    f.suptitle("Epoch vs Batch on AL Iter %s: Train Performance"
-               % (al_iter+1))
+    f.suptitle(
+        "Epoch vs Batch%s: Train Performance" %
+        ("on AL Iter" % (al_iter+1) if df['al_iter'].max() > 0 else ""))
     ax1.set_title("Training Accuracy")
     sns.heatmap(df.pivot('batch_idx', 'epoch', 'train_acc'), ax=ax1)
     ax2.set_title("Training Loss")
@@ -284,7 +280,7 @@ def plot_quantile_perf_across_al_iters(img_dir, df):
     # more batch_idxs and therefore the probability of a higher .9 and a lower
     # .1 increases as AL iter increases.  maybe can normalize for this
     # probability?
-    al_perf = df.groupby('al_iter')[
+    al_perf = df.query('perf').groupby('al_iter')[
         ['val_acc', 'val_loss', 'train_acc', 'train_loss']]\
         .quantile([0, .1, .25, .5, .75, .9, 1]).unstack()
     al_perf.columns.names = ('variable', 'quantile')
