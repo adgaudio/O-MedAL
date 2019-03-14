@@ -10,7 +10,16 @@ cd "$(dirname "$(dirname "$(readlink -f "$0")")")"
 
 source ./bin/bash_lib.sh
 
-# execute parselog in parallel
 export -f run_parselog_py
-find data/log/  -type f -name "*.log" -o -type f -name "*.txt" \
-    | parallel run_parselog_py $overwrite_plots
+
+if [ "$overwrite_plots" = "false" ] ; then
+  # execute parselog in parallel on files we don't have plots for
+  comm -23 \
+    <( find data/log/  -type f -name "*.log" -o -type f -name "*.txt" |sort) \
+    <( find data/_analysis/ -type d | sed 's/_analysis/log/' |sort ) | \
+    parallel run_parselog_py $overwrite_plots
+else
+  # execute parselog in parallel on all log files found
+  find data/log/  -type f -name "*.log" -o -type f -name "*.txt" \
+      | parallel run_parselog_py $overwrite_plots
+fi
