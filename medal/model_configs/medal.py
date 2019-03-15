@@ -189,30 +189,36 @@ def train(config):
 
 
 class OnlineMedalMixin:
-    # available options are:
-    #   online_method=1 train with all available data
-    #   online_method=2 train with only newly available data
-    online_method = 1
-
     reset_model_weights_each_al_iter = False
+
+    # The percentage of previously labeled data points to include in training
+    online_sample_frac = 0.0
 
     def update_train_loader(self, points_to_label):
         """This method is called inside the MedAL train loop train.
         Default settings are to train model using all labeled training data
         """
-        if self.online_method == 1:
-            # use all available labeled data
-            super().update_train_loader(points_to_label)
-        elif self.online_method == 2:
-            self._set_points_labeled(points_to_label)
-            self.train_loader = feedforward.create_data_loader(
-                self, idxs=self._train_indices[self._is_labeled])
+        if self.online_sample_frac is float:
+            raise Exception("Must define online_sample_frac")
+
+        # get a subset of the previously labeled points
+        tmp = self._train_indices[self._is_labeled]
+        if int(tmp.shape[0] * self.online_sample_frac) == 0:
+            previously_labeled_points = torch.tensor(
+                [], dtype=torch.long, device=self.device)
         else:
-            raise Exception(
-                "unrecognized online_method=%s" % self.online_method)
-        # use only new data
-        #  self.train_loader = feedforward.create_data_loader(
-            #  self, idxs=self._train_indices[self.
+            tmpidxs = torch.randint(
+                0, tmp.shape[0],
+                (int(tmp.shape[0] * self.online_sample_frac), ))
+            previously_labeled_points = tmp[tmpidxs]
+        # get the newly labeled points
+        _tmp = torch.arange(self._is_labeled.shape[0], device=self.device)
+        newly_labeled_points = _tmp[~self._is_labeled][points_to_label]
+
+        self._set_points_labeled(points_to_label)
+        self.train_loader = feedforward.create_data_loader(
+            self, idxs=torch.cat([
+                previously_labeled_points, newly_labeled_points]))
 
 
 class MedalConfigABC(feedforward.FeedForwardModelConfig):
