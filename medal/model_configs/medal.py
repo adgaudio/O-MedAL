@@ -164,35 +164,55 @@ def train(config):
     """Train a feedforward network using MedAL method"""
 
     for al_iter in range(config.cur_al_iter + 1, config.al_iters + 1):
-        #  reset_model weights
-        config.model.load_state_dict(
-            pickle.loads(config._serialized_model_state_dict))
-
         # update state for new al iteration
         config.cur_epoch = 0
         config.cur_al_iter = al_iter
 
-        # train model the regular way
-        config.train_loader = feedforward.create_data_loader(
-            config, idxs=config._train_indices[config._is_labeled])
+        # pick unlabeled points to label and label them
+        if al_iter == 1:
+            points_to_label = pick_initial_data_points_to_label(config)
+        else:
+            points_to_label = pick_data_points_to_label(config)
+
+        # reset_model weights if necessary
+        if config.reset_model_weights_each_al_iter:
+            config.model.load_state_dict(
+                pickle.loads(config._serialized_model_state_dict))
+
+        # train model
+        config.update_train_loader(points_to_label)
         feedforward.train(config)  # train for many epochs
 
         if config._is_labeled.sum() == config._is_labeled.shape[0]:
             print("Stop training.  Used up all available training data")
             break
 
-        # pick unlabeled points to label and label them
-        points_to_label = pick_data_points_to_label(config)
-        # --> unfortunately, have to do this in a convoluted way
-        # since an update like arr[arr][idxs] = 1 doesn't actually update arr
-        _test_sanity_check = config._is_labeled.sum()
-        _tmp = torch.arange(config._is_labeled.shape[0], device=config.device)
-        _tmp2 = _tmp[~config._is_labeled][points_to_label]
-        # sanity check: point should not be previously labeled
-        assert (config._is_labeled[_tmp2] == 0).all()
-        config._is_labeled[_tmp2] = 1
-        assert _test_sanity_check + len(points_to_label) \
-            == config._is_labeled.sum()
+
+class OnlineMedalMixin:
+    # available options are:
+    #   online_method=1 train with all available data
+    #   online_method=2 train with only newly available data
+    online_method = 1
+
+    reset_model_weights_each_al_iter = False
+
+    def update_train_loader(self, points_to_label):
+        """This method is called inside the MedAL train loop train.
+        Default settings are to train model using all labeled training data
+        """
+        if self.online_method == 1:
+            # use all available labeled data
+            super().update_train_loader(points_to_label)
+        elif self.online_method == 2:
+            self._set_points_labeled(points_to_label)
+            self.train_loader = feedforward.create_data_loader(
+                self, idxs=self._train_indices[self._is_labeled])
+        else:
+            raise Exception(
+                "unrecognized online_method=%s" % self.online_method)
+        # use only new data
+        #  self.train_loader = feedforward.create_data_loader(
+            #  self, idxs=self._train_indices[self.
 
 
 class MedalConfigABC(feedforward.FeedForwardModelConfig):
@@ -203,6 +223,7 @@ class MedalConfigABC(feedforward.FeedForwardModelConfig):
     num_max_entropy_samples = int
     num_points_to_label_per_al_iter = int
     data_loader_num_workers = 0
+    reset_model_weights_each_al_iter = True
 
     @abc.abstractmethod
     def get_feature_embedding_layer(self):
@@ -230,6 +251,36 @@ class MedalConfigABC(feedforward.FeedForwardModelConfig):
             assert len(extra_state) == 0, extra_state
         return extra_state
 
+    def _set_points_labeled(self, points_to_label):
+        """Update self._is_labeled indices"""
+        # label the unlabeled points.
+        # --> unfortunately, have to do this in a convoluted way
+        # since an update like arr[arr][idxs] = 1 doesn't actually update arr
+        # if pytorch is using cuda.
+        _test_sanity_check = self._is_labeled.sum()
+        _tmp = torch.arange(self._is_labeled.shape[0], device=self.device)
+        _tmp2 = _tmp[~self._is_labeled][points_to_label]
+        # --> sanity check: point should not be previously labeled
+        assert (self._is_labeled[_tmp2] == 0).all()
+        self._is_labeled[_tmp2] = 1
+        assert _test_sanity_check + len(points_to_label) \
+            == self._is_labeled.sum()
+
+    def update_train_loader(self, points_to_label):
+        """
+        Label the given unlabeled points and update self.train_loader to
+        include these new points.
+        This method is called from the MedAL train loop.
+        The self.train_loader will include all labeled training data
+
+        Subclasses could use points_to_label to train model in online fashion.
+        Subclasses could use points_to_label to actually get a human labeler
+        involved.
+        """
+        self._set_points_labeled(points_to_label)
+        self.train_loader = feedforward.create_data_loader(
+            self, idxs=self._train_indices[self._is_labeled])
+
     def __init__(self, config_override_dict):
         super().__init__(config_override_dict)
 
@@ -246,9 +297,6 @@ class MedalConfigABC(feedforward.FeedForwardModelConfig):
         del self.train_loader  # will recreate this appropriately during train
         self._is_labeled = torch.ByteTensor(
             self._train_indices.shape).to(self.device) * 0
-
-        mask = pick_initial_data_points_to_label(self)
-        self._is_labeled[mask] = 1
 
         self._serialized_model_state_dict = \
             pickle.dumps(self.model.state_dict())
@@ -288,3 +336,9 @@ class MedalResnet18BinaryClassifier(MedalConfigABC,
 
     def get_feature_embedding_layer(self):
         return list(self.model.children())[0][5]
+
+
+class OnlineMedalResnet18BinaryClassifier(
+        OnlineMedalMixin,
+        MedalResnet18BinaryClassifier):
+    pass

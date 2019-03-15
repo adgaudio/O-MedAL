@@ -5,4 +5,5 @@ from .medal import (
     MedalInceptionV3BinaryClassifier,
     MedalSqueezeNetBinaryClassifier,
     MedalResnet18BinaryClassifier,
+    OnlineMedalResnet18BinaryClassifier
 )
