@@ -53,7 +53,8 @@ def _add_subparser_arg(subparser, k, v, obj):
     ku = k.replace('_', '-')
     if isinstance(v, bool):
         grp = g.add_mutually_exclusive_group()
-        grp.add_argument('--%s' % ku, action='store_const', const=True)
+        grp.add_argument(
+            '--%s' % ku, action='store_const', const=True, default=v)
         grp.add_argument(
             '--no-%s' % ku, action='store_const', const=False, dest=k)
     elif isinstance(v, accepted_simple_types):
@@ -63,8 +64,8 @@ def _add_subparser_arg(subparser, k, v, obj):
         if all(isinstance(x, accepted_simple_types) for x in v):
             g.add_argument(
                 '--%s' % ku, nargs=len(v), default=v, help=' ',
-                type=lambda inpt: type(types)(
-                    [typ(x) for typ, x in zip(types, inpt)]))
+                type=lambda inpt: type(accepted_simple_types)(
+                    [typ(x) for typ, x in zip(accepted_simple_types, inpt)]))
         else:
             g.add_argument('--%s' % ku, nargs=len(v), type=v[0])
     elif any(v is x for x in accepted_simple_types):
