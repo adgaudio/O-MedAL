@@ -177,6 +177,10 @@ def train(config):
             config, idxs=config._train_indices[config._is_labeled])
         feedforward.train(config)  # train for many epochs
 
+        if config._is_labeled.sum() == config._is_labeled.shape[0]:
+            print("Stop training.  Used up all available training data")
+            break
+
         # pick unlabeled points to label and label them
         points_to_label = pick_data_points_to_label(config)
         # --> unfortunately, have to do this in a convoluted way
@@ -189,10 +193,6 @@ def train(config):
         config._is_labeled[_tmp2] = 1
         assert _test_sanity_check + len(points_to_label) \
             == config._is_labeled.sum()
-
-        if config._is_labeled.sum() == config._is_labeled.shape[0]:
-            print("Stop training.  Used up all available training data")
-            break
 
 
 class MedalConfigABC(feedforward.FeedForwardModelConfig):
