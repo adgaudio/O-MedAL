@@ -30,17 +30,21 @@ def main(ns: ap.Namespace):
 
 def _add_subparser_find_configurable_attributes(kls):
     # get a list of configurable attributes from given class and parent classes
-    keys = set()
-    klass_seen = set()
+    keys = dict()  # klass: set(keys...)
+    klass_seen = [kls]
     klass_lst = [kls]
     while klass_lst:
         klass = klass_lst.pop()
         for k in klass.__bases__:
             if k in klass_seen:
                 continue
-            klass_seen.add(k)
+            klass_seen.append(k)
             klass_lst.append(k)
-        keys.update({x for x in klass.__dict__ if not x.startswith('_')})
+    options_seen = set()
+    for klass in reversed(klass_seen):
+        tmp = {x for x in klass.__dict__ if not x.startswith('_')}
+        keys[klass] = tmp.difference(options_seen)
+        options_seen.update(tmp)
     return keys
 
 
@@ -85,9 +89,11 @@ def add_subparser(subparsers, name: str, modelconfig_class: type):
 
     # add an argument for each configurable key that we can work with
     keys = _add_subparser_find_configurable_attributes(modelconfig_class)
-    for k in keys:
-        v = getattr(modelconfig_class, k)
-        _add_subparser_arg(g, k, v, modelconfig_class)
+    for klass in keys:
+        grp = g.add_argument_group("Options from class %s" % klass.__name__, description=klass.__doc__)
+        for k in keys[klass]:
+            v = getattr(modelconfig_class, k)
+            _add_subparser_arg(grp, k, v, modelconfig_class)
 
 
 def build_arg_parser():
