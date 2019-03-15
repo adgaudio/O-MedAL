@@ -206,12 +206,13 @@ def plot_learning_curve_over_al_iters(
 
     if last_al_iter > 0:
         f = sns.FacetGrid(
-            df.query('perf').drop('batch_idx', axis=1),
+            df.query('perf').drop('batch_idx', axis=1).set_index('epoch'),
             col='al_iter', col_wrap=np.round(np.sqrt(last_al_iter)))\
             .map_dataframe(_plot_learning_curve).add_legend().fig
         f.subplots_adjust(top=.85)
     else:
         ax = df.query('perf')\
+            .set_index('epoch')\
             .query('al_iter == @last_al_iter')[cols]\
             .plot()
         table = pd.plotting.table(
