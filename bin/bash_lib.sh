@@ -10,11 +10,25 @@ function run_parselog_py() {
     echo skipping $fp_in
     exit
   fi
-  python ./bin/parselog.py "$out_dir" "$fp_in" >/dev/null 2>/dev/null
+  out="$(mktemp -p ./data/tmp/)"
+  exec 3>"$out"
+  exec 4<$out
+  rm "$out"
+  RED='\033[0;31m'
+  GREEN='\033[0;32m'
+  YELLOW='\033[0;33m'
+  CYAN='\033[0;34m'
+  NC='\033[0m' # No Color
+  cmd="python ./bin/parselog.py ""$out_dir"" ""$fp_in"
+  echo -e "$CYAN $cmd $NC"
+  $cmd >&3 2>&3
   if [ $? -ne 0 ] ; then
-    echo failed_to_parse $fp_in
+    echo -e "$RED failed_to_parse $NC $fp_in"
+    echo -e "$YELLOW "
+    cat <&4
   else
-    echo "successfully_parsed $fp_in"
+    echo -e "$GREEN successfully_parsed $NC $fp_in"
+    grep Traceback $fp_in >/dev/null && echo -e "$YELLOW    WARN: but log contains a Traceback $NC"
     echo "    output_dir $out_dir"
   fi
 }

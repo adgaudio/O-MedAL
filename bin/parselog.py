@@ -176,7 +176,7 @@ def parse_log_files(fps_in, log_type=None):
     if log_type is not None:
         return _parse_log_files(fps_in, log_type)
 
-    for log_type in [MedALConfig, KerasConfig]:
+    for log_type in [MedALConfig]:  #, KerasConfig]:
         df = None
         try:
             df = _parse_log_files(fps_in, log_type)
@@ -185,7 +185,7 @@ def parse_log_files(fps_in, log_type=None):
             break
         except Exception as e:
             print('--', log_type.__name__, e)
-            pass
+            raise
     if df is None:
         raise Exception("Could not figure out how to parse the given log"
                         " file(s): %s" % (str(config.fps_in)))
@@ -331,12 +331,15 @@ if __name__ == "__main__":
         config.output_dir, df, 'acc', last_al_iter, selected_al_iters)
 
     # how learning progresses over time.
-    plot_heatmap(
-        config.output_dir, df, 'train_acc', "Train Accuracy",
-        selected_al_iters)
-    plot_heatmap(
-        config.output_dir, df, 'train_loss', "Train Loss", selected_al_iters)
-    plot_heatmap_at_al_iter(config.output_dir, df, last_al_iter)
+    # not relevant for online medal, since there may be no batch indexes
+    if not df.query('not perf').empty:
+        plot_heatmap(
+            config.output_dir, df, 'train_acc', "Train Accuracy",
+            selected_al_iters)
+        plot_heatmap(
+            config.output_dir, df, 'train_loss', "Train Loss",
+            selected_al_iters)
+        plot_heatmap_at_al_iter(config.output_dir, df, last_al_iter)
 
     # AL performance over time
     if last_al_iter > 0:
