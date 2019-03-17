@@ -11,10 +11,9 @@ from . import feedforward
 
 
 def pick_initial_data_points_to_label(config):
-    # TODO: better initialization like used in paper
-    return torch.randint(
-        0, len(config._train_indices),
-        (config.num_points_to_label_per_al_iter, ))
+    return torch.randperm(
+        len(config._train_indices), device=config.device, dtype=torch.long)[
+            :config.num_points_to_label_per_al_iter]
 
 
 def pick_data_points_to_label(config):
@@ -127,6 +126,8 @@ def get_feature_embedding(config, data_loader, topk):
             if topk is not None:
                 _entropy = -yhat*torch.log2(yhat) - (1-yhat)*torch.log2(1-yhat)
                 entropy = torch.cat([entropy, _entropy])
+                assert len(entropy) == len(embeddings)
+                assert len(entropy) == len(loader_idxs)
                 if len(entropy) > topk:
                     entropy2, idxs = torch.topk(entropy, topk, dim=0)
                     embeddings = [embeddings[i] for i in idxs]
