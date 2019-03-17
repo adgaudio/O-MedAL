@@ -58,7 +58,7 @@ ssh $bridges_user@bridges.psc.edu <<EOF
 mkdir -p "$run_dir"
 ln -rs "$bdir/medal_improvements/data" "$run_dir" || true
 EOF
-rsync -ave ssh --delete --exclude __pycache__ --exclude data --exclude old \
+rsync -ave "ssh -C" --delete --exclude __pycache__ --exclude data --exclude old \
   ./ "$bridges_user@data.bridges.psc.edu:$bdir/medal_runs/$run_id"
 fi
 
