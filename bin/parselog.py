@@ -176,7 +176,7 @@ def parse_log_files(fps_in, log_type=None):
     if log_type is not None:
         return _parse_log_files(fps_in, log_type)
 
-    for log_type in [MedALConfig]:  #, KerasConfig]:
+    for log_type in [MedALConfig]:  # , KerasConfig]:
         df = None
         try:
             df = _parse_log_files(fps_in, log_type)
@@ -321,6 +321,7 @@ if __name__ == "__main__":
     df = parse_log_files(config.fps_in)
 
     os.makedirs(config.output_dir, exist_ok=True)
+    df.to_csv(join(config.output_dir, "logdata.csv"))
 
     print("Generating several plots...")
 
