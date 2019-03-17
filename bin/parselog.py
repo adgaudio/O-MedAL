@@ -202,7 +202,8 @@ def plot_learning_curve_over_al_iters(
 
     def _plot_learning_curve(*args, **kws):
         data = kws.pop('data')
-        data[cols].plot(style='-', linewidth=.5, use_index=False, ax=plt.gca())
+        data[cols].plot(
+            style='-', grid=True, linewidth=.5, use_index=False, ax=plt.gca())
 
     if last_al_iter > 0:
         f = sns.FacetGrid(
@@ -214,7 +215,7 @@ def plot_learning_curve_over_al_iters(
         ax = df.query('perf')\
             .set_index('epoch')\
             .query('al_iter == @last_al_iter')[cols]\
-            .plot()
+            .plot(grid=True)
         table = pd.plotting.table(
             ax, df.query('perf')[cols].describe().round(4).loc[['max', 'min']],
             loc='lower center', colWidths=[0.2, 0.2, 0.2], alpha=.4)
@@ -283,16 +284,18 @@ def plot_quantile_perf_across_al_iters(img_dir, df):
     # probability?
     al_perf = df.query('perf').groupby('al_iter')[
         ['val_acc', 'val_loss', 'train_acc', 'train_loss']]\
-        .quantile([0, .1, .25, .5, .75, .9, 1]).unstack()
+        .quantile([0, .01, .25, .5, .75, .99, 1]).unstack()
     al_perf.columns.names = ('variable', 'quantile')
     for cols, name in [(['train_loss', 'val_loss'], "Loss"),
                        (['train_acc', 'val_acc'], "Accuracy")]:
         f, axs = plt.subplots(3, 2)
-        for quantile, axss in zip([.1, .5, .9], axs):
+        for quantile, axss in zip([.01, .5, .99], axs):
             al_perf[(cols[0], quantile)].plot(
-                title="Quantile: %s, %s" % (quantile, cols[0]), ax=axss[0])
+                title="Quantile: %s, %s" % (quantile, cols[0]), ax=axss[0],
+                grid=True)
             al_perf[(cols[1], quantile)].plot(
-                title="Quantile: %s, %s" % (quantile, cols[1]), ax=axss[1])
+                title="Quantile: %s, %s" % (quantile, cols[1]), ax=axss[1],
+                grid=True)
 
         f.suptitle("Quantile %s of model across AL iters" % name)
         f.tight_layout(rect=[0, 0.03, 1, 0.95])
