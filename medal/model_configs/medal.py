@@ -208,9 +208,9 @@ class OnlineMedalMixin:
             previously_labeled_points = torch.tensor(
                 [], dtype=torch.long, device=self.device)
         else:
-            tmpidxs = torch.randint(
-                0, tmp.shape[0],
-                (int(tmp.shape[0] * self.online_sample_frac), ))
+            tmpidxs = torch.randperm(
+                tmp.shape[0], device=self.device, dtype=torch.long)[
+                    :int(tmp.shape[0] * self.online_sample_frac)]
             previously_labeled_points = tmp[tmpidxs]
         # get the newly labeled points
         _tmp = torch.arange(self._is_labeled.shape[0], device=self.device)
