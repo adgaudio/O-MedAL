@@ -44,13 +44,13 @@ class KerasConfig(LogType):
 
 
 class MedALConfig(LogType):
-    _epoch = r"epoch\s+(?P<epoch>\d+)\s+"
-    _batch_idx = r"batch_idx\s+(?P<batch_idx>\d+)\s+"
-    _train_loss = r"train_loss\s+(?P<train_loss>\d+\.\d+(e-?\d+)?)\s+"
-    _val_loss = r"val_loss\s+(?P<val_loss>\d+\.\d+(e-?\d+)?)\s+"
-    _train_acc = r"train_acc\s+(?P<train_acc>\d+\.\d+(e-?\d+)?)\s*"
-    _val_acc = r"val_acc\s+(?P<val_acc>\d+\.\d+(e-?\d+)?)\s*"
-    _al_iter = r"(al_iter\s+(?P<al_iter>\d+)\s*)?"
+    _epoch = r"epoch:?\s+(?P<epoch>\d+)\s+"
+    _batch_idx = r"batch_idx:?\s+(?P<batch_idx>\d+)\s+"
+    _train_loss = r"train_loss:?\s+(?P<train_loss>\d+\.\d+(e-?\d+)?)\s+"
+    _val_loss = r"val_loss:?\s+(?P<val_loss>\d+\.\d+(e-?\d+)?)\s+"
+    _train_acc = r"train_acc:?\s+(?P<train_acc>\d+\.\d+(e-?\d+)?)\s*"
+    _val_acc = r"val_acc:?\s+(?P<val_acc>\d+\.\d+(e-?\d+)?)\s*"
+    _al_iter = r"(al_iter:?\s+(?P<al_iter>\d+)\s*)?"
 
     regexes_data_shared_across_rows = [
     ]
@@ -321,7 +321,7 @@ if __name__ == "__main__":
     df = parse_log_files(config.fps_in)
 
     os.makedirs(config.output_dir, exist_ok=True)
-    df.to_csv(join(config.output_dir, "logdata.csv"))
+    df.to_csv(join(config.output_dir, "logdata.csv"), index=False)
 
     print("Generating several plots...")
 
