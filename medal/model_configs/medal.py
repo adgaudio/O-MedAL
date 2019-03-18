@@ -130,6 +130,9 @@ def get_feature_embedding(config, data_loader, topk):
                 assert len(entropy) == len(loader_idxs)
                 if len(entropy) > topk:
                     entropy2, idxs = torch.topk(entropy, topk, dim=0)
+                    assert max(idxs) < len(entropy)
+                    assert len(idxs) == len(entropy2)
+                    assert len(idxs) == topk
                     embeddings = [embeddings[i] for i in idxs]
                     loader_idxs = [loader_idxs[i] for i in idxs]
                     entropy = entropy2
