@@ -9,7 +9,6 @@ from .. import models
 
 
 class BaselineResnet18BinaryClassifier(feedforward.FeedForwardModelConfig):
-    run_id = "baseline_Resnet18"
     epochs = 100
     batch_size = 48
     learning_rate = 0.001

@@ -9,7 +9,6 @@ from .. import models
 
 
 class BaselineSqueezeNetBinaryClassifier(feedforward.FeedForwardModelConfig):
-    run_id = "baseline_squeezenet"
     epochs = 300
     batch_size = 16
     learning_rate = 0.01

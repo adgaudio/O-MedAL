@@ -148,6 +148,7 @@ class FeedForwardModelConfig(abc.ABC):
     def __init__(self, config_override_dict):
         self.__dict__.update({k: v for k, v in config_override_dict.items()
                               if v is not None})
+        assert isinstance(self.run_id, str), "must define a run_id to identify the model, ie via --run-id mytestrun"
         self.checkpoint_dir = join(self.base_dir, 'model_checkpoints')
         self.torch_model_dir = join(self.base_dir, 'torch/models')
 

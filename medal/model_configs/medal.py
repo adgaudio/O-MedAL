@@ -235,7 +235,6 @@ class OnlineMedalMixin:
 
 class MedalConfigABC(feedforward.FeedForwardModelConfig):
     """Base class for all MedAL models"""
-    run_id = str
     al_iters = int
 
     num_max_entropy_samples = int
@@ -313,7 +312,6 @@ class MedalConfigABC(feedforward.FeedForwardModelConfig):
 
 class MedalInceptionV3BinaryClassifier(MedalConfigABC,
                                        BaselineInceptionV3BinaryClassifier):
-    run_id = 'medal_inceptionv3'
     al_iters = 34
 
     num_max_entropy_samples = 20
@@ -325,7 +323,6 @@ class MedalInceptionV3BinaryClassifier(MedalConfigABC,
 
 class MedalSqueezeNetBinaryClassifier(MedalConfigABC,
                                       BaselineSqueezeNetBinaryClassifier):
-    run_id = 'medal_squeezenet'
     al_iters = 34
 
     num_max_entropy_samples = 20
@@ -337,7 +334,6 @@ class MedalSqueezeNetBinaryClassifier(MedalConfigABC,
 
 class MedalResnet18BinaryClassifier(MedalConfigABC,
                                     BaselineResnet18BinaryClassifier):
-    run_id = 'medal_resnet18'
     al_iters = 40
 
     num_max_entropy_samples = 50

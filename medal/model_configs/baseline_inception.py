@@ -9,7 +9,6 @@ from .. import models
 
 
 class BaselineInceptionV3BinaryClassifier(feedforward.FeedForwardModelConfig):
-    run_id = "baseline_inceptionv3"
     epochs = 300
     batch_size = 8
     learning_rate = 2e-4
