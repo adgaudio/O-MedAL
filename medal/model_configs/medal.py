@@ -167,9 +167,17 @@ def register_embedding_hook(layer, output_arr):
 def train(config):
     """Train a feedforward network using MedAL method"""
 
-    for al_iter in range(config.cur_al_iter + 1, config.al_iters + 1):
+    # set cur_al_iter and cur_epoch appropriately
+    start_al_iter = config.cur_al_iter
+    reset_cur_epoch = False
+    if config.cur_al_iter == 0 or config.cur_epoch == config.epochs:
+        start_al_iter += 1
+        reset_cur_epoch = True
+    for al_iter in range(start_al_iter, config.al_iters + 1):
         # update state for new al iteration
-        config.cur_epoch = 0
+        if reset_cur_epoch:
+            config.cur_epoch = 0
+            reset_cur_epoch = True
         config.cur_al_iter = al_iter
 
         # pick unlabeled points to label and label them
@@ -246,20 +254,11 @@ class MedalConfigABC(feedforward.FeedForwardModelConfig):
     def train(self):
         return train(self)
 
-    def load_checkpoint(self, check_loaded_all_available_data=True):
-        extra_state = super().load_checkpoint()
-        # ensure loaded right checkpoint
-        # same processing that feedforward does for epoch.
-        if self.cur_al_iter != 0:
-            checkpointing.ensure_consistent(
-                extra_state, key='al_iter', value=self.cur_al_iter)
-        elif extra_state is None:  # no checkpoint found
-            return
-
-        self.cur_al_iter = extra_state.pop('al_iter')
-        if check_loaded_all_available_data:
-            assert len(extra_state) == 0, extra_state
-        return extra_state
+    def get_checkpoint_extra_state(self):
+        dct = super().get_checkpoint_extra_state()
+        for k in ['cur_al_iter', '_is_labeled', '_train_indices']:
+            dct[k] = getattr(self, k)
+        return dct
 
     def _set_points_labeled(self, points_to_label):
         """Update self._is_labeled indices"""

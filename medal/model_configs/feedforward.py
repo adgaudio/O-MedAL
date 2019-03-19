@@ -63,7 +63,8 @@ def train(config):
         train_loss, train_acc = train_one_epoch(config)
         if config.checkpoint_interval > 0\
                 and epoch % config.checkpoint_interval == 0:
-            checkpointing.save_checkpoint(config, dict(epoch=epoch))
+            checkpointing.save_checkpoint(
+                config, config.get_checkpoint_extra_state())
         if config.val_perf_interval > 0\
                 and epoch % config.val_perf_interval == 0:
             val_loss, val_acc = test(config)
@@ -159,15 +160,11 @@ class FeedForwardModelConfig(abc.ABC):
     def __repr__(self):
         return "config:%s" % self.run_id
 
-    def load_checkpoint(self, check_loaded_all_available_data=True):
-        extra_state = checkpointing.load_checkpoint(self)
-        # ensure loaded the right checkpoint
-        if self.cur_epoch != 0:
-            checkpointing.ensure_consistent(
-                extra_state, key='epoch', value=self.cur_epoch)
-        elif extra_state is None:  # no checkpoint found
-            return
-        self.cur_epoch = extra_state.pop('epoch')
-        if check_loaded_all_available_data:
-            assert len(extra_state) == 0, extra_state
-        return extra_state
+    def load_checkpoint(self):
+        return checkpointing.load_checkpoint(self)
+
+    def get_checkpoint_extra_state(self):
+        """Extra state to save in the checkpoint file.  The key name should
+        exactly match the variable name so restore checkpoint can load it
+        correctly."""
+        return {'cur_epoch': self.cur_epoch}

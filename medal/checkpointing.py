@@ -55,24 +55,15 @@ def load_checkpoint(config):
         fp = max(fps)
         print("Restoring from checkpoint:", fp)
         checkpoint = torch.load(fp)
-        config.model.load_state_dict(checkpoint.pop('model_state_dict'))
+        config.model.load_state_dict(checkpoint['model_state_dict'])
         config.optimizer.load_state_dict(
-            checkpoint.pop('optimizer_state_dict'))
+            checkpoint['optimizer_state_dict'])
+
+        for k in config.get_checkpoint_extra_state():
+            if k not in checkpoint:
+                raise Exception("The key %s was not found in checkpoint")
+            setattr(config, k, checkpoint[k])
         return checkpoint
     else:
         print("Did not restore a checkpoint.  No file matches: %s" % read_fp)
         return
-
-
-def ensure_consistent(extra_state, key, value):
-    """Check the state returned by load_checkpoint has given key and value
-    Raise an error if it is not consistent
-    """
-    if not isinstance(extra_state, dict):
-        raise Exception(
-            "Could not find requested checkpoint at %s: %s" % (key, value))
-    assert extra_state[key], "bug: loaded incorrect checkpoint data"
-    if extra_state[key] != value:
-        raise Exception((
-            "bug: Data inconsistency! %s stored in checkpoint"
-            " does not match file loaded.") % key)
