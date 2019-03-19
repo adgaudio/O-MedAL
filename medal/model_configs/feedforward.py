@@ -58,6 +58,8 @@ def train_one_epoch(config):
 
 
 def train(config):
+    early_stopping_best_val_loss = float('inf')
+    early_stopping_counter = 0
     for epoch in range(config.cur_epoch + 1, config.epochs + 1):
         config.cur_epoch = epoch
         train_loss, train_acc = train_one_epoch(config)
@@ -70,7 +72,20 @@ def train(config):
             val_loss, val_acc = test(config)
         else:
             val_loss, val_acc = None, None
+
         print(config.log_msg_epoch.format(**locals()))
+
+        # early stopping
+        if val_loss is not None and config.early_stopping_patience > 0:
+            if val_loss <= early_stopping_best_val_loss:
+                early_stopping_counter = 0
+                early_stopping_best_val_loss = val_loss
+            else:
+                early_stopping_counter += 1
+                if early_stopping_counter + 1 > config.early_stopping_patience:
+                    print("Early stopping")
+                    break
+
 
 
 def test(config):
@@ -135,6 +150,8 @@ class FeedForwardModelConfig(abc.ABC):
     # the epoch number is actually 1 indexed.  By default, try to load the
     # epoch 0 file, which won't exist unless you manually put it there.
     cur_epoch = 0
+
+    early_stopping_patience = 0  # early stopping, disabled by default
 
     data_loader_num_workers = max(1, mp.cpu_count()//2 - 1)
     log_msg_epoch = (
