@@ -3,7 +3,6 @@ import pickle
 import torch
 from contextlib import contextmanager
 
-from .. import checkpointing
 from .baseline_inception import BaselineInceptionV3BinaryClassifier
 from .baseline_squeezenet import BaselineSqueezeNetBinaryClassifier
 from .baseline_resnet18 import BaselineResnet18BinaryClassifier
@@ -82,12 +81,12 @@ def get_labeled_and_topk_unlabeled_embeddings(config):
     labeled_data_loader = feedforward.create_data_loader(
         config, idxs=config._train_indices[config._is_labeled], shuffle=False)
 
-    # get labeled data embeddings
-    embedding_labeled, _ = get_feature_embedding(
-        config, labeled_data_loader, topk=None)
     # get unlabeled data embeddings on the N highest predictive entropy samples
     embedding_unlabeled, unlabeled_idxs = get_feature_embedding(
         config, unlabeled_data_loader, topk=config.num_max_entropy_samples)
+    # get labeled data embeddings
+    embedding_labeled, _ = get_feature_embedding(
+        config, labeled_data_loader, topk=None)
 
     assert embedding_unlabeled.shape[0] \
         == unlabeled_idxs.shape[0]  # sanity check
@@ -112,16 +111,18 @@ def get_feature_embedding(config, data_loader, topk):
     with torch.no_grad(), register_embedding_hook(
             config.get_feature_embedding_layer(), _batched_embeddings):
         entropy = torch.tensor([]).to(config.device)
-        embeddings = []
-        loader_idxs = []
+        embeddings = torch.tensor([]).to(config.device)
+        loader_idxs = torch.tensor([], dtype=torch.long).to(config.device)
         N = 0
         for X, y in data_loader:
             # get entropy and embeddings for this batch
             X, y = X.to(config.device), y.to(config.device)
             yhat = config.model(X)
-            embeddings.extend(_batched_embeddings.pop())
+            embeddings = torch.cat([embeddings, _batched_embeddings.pop()])
             assert len(_batched_embeddings) == 0  # sanity check forward hook
-            loader_idxs.extend(range(N, N+X.shape[0]))
+            loader_idxs = torch.cat([
+                loader_idxs,
+                torch.arange(N, N+X.shape[0], device=config.device)])
             # select only top k values
             if topk is not None:
                 _entropy = -yhat*torch.log2(yhat) - (1-yhat)*torch.log2(1-yhat)
@@ -130,19 +131,17 @@ def get_feature_embedding(config, data_loader, topk):
                 assert len(entropy) == len(loader_idxs)
                 if len(entropy) > topk:
                     entropy2, idxs = torch.topk(entropy, topk, dim=0)
+                    idxs = idxs.cpu().numpy().ravel()
                     assert max(idxs) < len(entropy)
                     assert len(idxs) == len(entropy2)
                     assert len(idxs) == topk
-                    embeddings = [embeddings[i] for i in idxs]
-                    loader_idxs = [loader_idxs[i] for i in idxs]
+                    embeddings = embeddings[idxs]
+                    loader_idxs = loader_idxs[idxs]
                     entropy = entropy2
             N += X.shape[0]
 
-        embeddings = torch.stack(embeddings)
         embeddings = embeddings.reshape(embeddings.shape[0], -1)
-        loader_idxs = torch.tensor(
-            loader_idxs, dtype=torch.long, device=config.device)
-        return embeddings.detach(), loader_idxs
+        return embeddings, loader_idxs
 
 
 @contextmanager
