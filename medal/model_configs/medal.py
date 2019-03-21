@@ -333,7 +333,7 @@ class MedalSqueezeNetBinaryClassifier(MedalConfigABC,
 
 class MedalResnet18BinaryClassifier(MedalConfigABC,
                                     BaselineResnet18BinaryClassifier):
-    al_iters = 40
+    al_iters = 49
 
     num_max_entropy_samples = 50
     num_points_to_label_per_al_iter = 20
