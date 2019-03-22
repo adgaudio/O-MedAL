@@ -1,4 +1,5 @@
 import pandas as pd
+import seaborn as sns
 import re
 import numpy as np
 from matplotlib import pyplot as plt
@@ -56,7 +57,9 @@ dfm = dfm.set_index(['al_iter', 'epoch']).reindex(_mi).reset_index()
 for df in [dfo, dfm]:
     N = df['al_iter'].values * points_to_label_per_al_iter
     df['pct_dataset_labeled_int'] = (N / train_set_size * 100).astype(int)
-    df['pct_dataset_labeled'] = (N / train_set_size * 100)
+    x = (N / train_set_size * 100)
+    x[x > 100] = 100  # clip ends, since the reindexing operation would make seem like over 100%
+    df['pct_dataset_labeled'] = x
 
 dfb['num_img_patches_processed'] = dfb.index * train_set_size
 dfm['num_img_patches_processed'] = \
@@ -134,17 +137,35 @@ f.savefig(join(analysis_dir, 'num_img_patches_processed.png'))
 #  plt.show()
 
 # plot 3: best performing model
+g = dfo.groupby('fp')\
+    .apply(lambda x: x.sort_values(['val_acc', 'pct_dataset_labeled'],
+                                   ascending=False).head(15))\
+    [['val_acc', 'pct_dataset_labeled']]\
+    .droplevel(0).droplevel('log_line_num').reset_index()
+f, ax = plt.subplots(1, 1)
+sns.scatterplot('val_acc', 'pct_dataset_labeled', hue='fp', data=g, ax=ax)
+ax.set_title("Top 15 highest validation accuracies for each experiment")
+f.savefig(join(analysis_dir, 'topn_best_val_accs_per_experiment.png'))
 
-bpm = dfo['val_acc'].unstack('fp').max().rename('val_acc').to_frame().T\
+_bpm1 = dfo[['val_acc']]\
+    .unstack('fp').max().rename('val_acc').to_frame().T.droplevel(0, axis=1)\
     .join(dfm[['val_acc']].max().rename('MedAL'))\
-    .join(dfb[['val_acc']].max().rename('ResNet'))\
+    .join(dfb[['val_acc']].max().rename('ResNet18'))\
     .T
+_bpm2 = dfo[['pct_dataset_labeled']]\
+    .unstack('fp').max().rename('pct_dataset_labeled').to_frame().T.droplevel(0, axis=1)\
+    .join(dfm[['pct_dataset_labeled']].max().rename('MedAL'))\
+    .join(pd.Series({'pct_dataset_labeled': 100.0}, name='ResNet18'))\
+    .T
+bpm = pd.concat([_bpm1, _bpm2], axis=1)
+
 f, (ax1, ax2) = plt.subplots(2, 1)
-bpm.plot.bar(legend=False, ax=ax1, rot=30)
+bpm.drop('pct_dataset_labeled', axis=1).plot.bar(legend=False, ax=ax1, rot=30)
 ax2.table(
     cellText=bpm.round(4).sort_values('val_acc', ascending=False)\
     .reset_index().values,
-    colLabels=['Model', 'Best Validation Acc'], loc='center')
+    colLabels=['Model', 'Best Validation Acc', 'Percent dataset labeled'],
+    loc='center')
 ax2.axis('tight')
 ax2.axis('off')
 f.tight_layout()
