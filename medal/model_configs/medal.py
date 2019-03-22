@@ -118,6 +118,7 @@ def get_feature_embedding(config, data_loader, topk):
             # get entropy and embeddings for this batch
             X, y = X.to(config.device), y.to(config.device)
             yhat = config.model(X)
+            assert torch.isnan(yhat).sum() == 0
             embeddings = torch.cat([embeddings, _batched_embeddings.pop()])
             assert len(_batched_embeddings) == 0  # sanity check forward hook
             loader_idxs = torch.cat([
@@ -126,12 +127,18 @@ def get_feature_embedding(config, data_loader, topk):
             # select only top k values
             if topk is not None:
                 _entropy = -yhat*torch.log2(yhat) - (1-yhat)*torch.log2(1-yhat)
+                # Work around when yhat == 1 and entropy is nan instead of 0
+                _m = torch.isnan(_entropy)
+                _entropy[_m] = 0
+                assert (yhat[_m] == 1).all(), "bug: unexplained nan value"
                 entropy = torch.cat([entropy, _entropy])
+                assert torch.isnan(entropy).sum() == 0
                 assert len(entropy) == len(embeddings)
                 assert len(entropy) == len(loader_idxs)
                 if len(entropy) > topk:
                     entropy2, idxs = torch.topk(entropy, topk, dim=0)
                     idxs = idxs.cpu().numpy().ravel()
+                    assert torch.isnan(entropy2).sum() == 0
                     assert max(idxs) < len(entropy)
                     assert len(idxs) == len(entropy2)
                     assert len(idxs) == topk
