@@ -79,7 +79,7 @@ onlinepltdata = dfo\
     .drop('al_iter', axis=1)\
     .droplevel('log_line_num')['val_acc']\
     .unstack('fp')\
-    .reindex(medalpltdata.index)
+    .reindex(medalpltdata.index)  #  [['Online - 0', 'Online - 37.5', 'Online - 62.5', 'Online - 100]]  # uncomment for presentation plot
 # --> add the plots
 axs = onlinepltdata\
     .plot(ylim=(0, 1), color='red', subplots=True, figsize=(10, 8))
@@ -124,7 +124,14 @@ ax1.set_ylabel('Image patches processed')
 ax1.set_xlabel('Percent Dataset Labeled')
 ax2.set_xlabel('Percent Dataset Labeled')
 f.savefig(join(analysis_dir, 'num_img_patches_processed.png'))
-
+# --> plot showing amount of data that vanilla medal uses to train (for slides)
+#  ax = dfm.groupby('pct_dataset_labeled')['num_img_patches_processed'].max().rename('MedAL').plot()
+#  ax.hlines(dfb['num_img_patches_processed'].max(),
+#          0, 100, color='lightblue', linestyle='--', label='Baseline ResNet')
+#  ax.legend()
+#  ax.set_ylabel('Image patches processed')
+#  ax.set_xlabel('Percent Dataset Labeled')
+#  plt.show()
 
 # plot 3: best performing model
 
