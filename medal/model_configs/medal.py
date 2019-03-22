@@ -130,7 +130,8 @@ def get_feature_embedding(config, data_loader, topk):
                 # Work around when yhat == 1 and entropy is nan instead of 0
                 _m = torch.isnan(_entropy)
                 _entropy[_m] = 0
-                assert (yhat[_m] == 1).all(), "bug: unexplained nan value"
+                # check for other unexplained nan bugs
+                assert ((yhat[_m] == 1) | (yhat[_m] == 0)).all()
                 entropy = torch.cat([entropy, _entropy])
                 assert torch.isnan(entropy).sum() == 0
                 assert len(entropy) == len(embeddings)
