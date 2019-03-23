@@ -73,31 +73,38 @@ dfo['num_img_patches_processed'] = \
 
 # plot 1: val acc vs percent dataset labeled
 # --> prepare results for plot
-medalpltdata = dfm\
-    .set_index(['pct_dataset_labeled_int', 'epoch'])['val_acc']\
-    .rename('MedAL')
-onlinepltdata = dfo\
-    .query('perf')\
-    .set_index(['pct_dataset_labeled_int', 'epoch'], append=True)\
-    .drop('al_iter', axis=1)\
-    .droplevel('log_line_num')['val_acc']\
-    .unstack('fp')\
-    .reindex(medalpltdata.index)  #  [['Online - 0', 'Online - 37.5', 'Online - 62.5', 'Online - 100]]  # uncomment for presentation plot
-# --> add the plots
-axs = onlinepltdata\
-    .plot(ylim=(0, 1), color='red', subplots=True, figsize=(10, 8))
-[medalpltdata.plot(ax=ax, alpha=.5, color='green', linewidth=0.3,
-                   label='_nolegend_') for ax in axs]
-[ax.legend(loc='lower right', frameon=False) for ax in axs]
-[ax.hlines(dfb['val_acc'].max(), 0, medalpltdata.shape[0],
-           color='lightblue', linestyle='--') for ax in axs]
-# --> handle xticks.
-axs[-1].set_xlabel('Percent Dataset Labeled')
-axs[len(axs)//2].set_ylabel('Validation Accuracy')
-axs[0].xaxis.set_major_locator(mticker.LinearLocator(10))
-axs[0].xaxis.set_major_formatter(
-    mticker.FuncFormatter(lambda x, pos: medalpltdata.index[int(x)][0]))
-axs[0].figure.savefig(join(analysis_dir, 'varying_online_frac.png'))
+def main_perf_plot(presentation_mode=False):
+    medalpltdata = dfm\
+        .set_index(['pct_dataset_labeled_int', 'epoch'])['val_acc']\
+        .rename('MedAL')
+    onlinepltdata = dfo\
+        .query('perf')\
+        .set_index(['pct_dataset_labeled_int', 'epoch'], append=True)\
+        .drop('al_iter', axis=1)\
+        .droplevel('log_line_num')['val_acc']\
+        .unstack('fp')\
+        .reindex(medalpltdata.index)
+    if presentation_mode:
+        onlinepltdata = onlinepltdata\
+            [['Online - 0', 'Online - 37.5', 'Online - 62.5', 'Online - 100']]
+    # --> add the plots
+    axs = onlinepltdata\
+        .plot(ylim=(0, 1), color='red', subplots=True, figsize=(10, 8))
+    [medalpltdata.plot(ax=ax, alpha=.5, color='green', linewidth=0.3,
+                    label='_nolegend_') for ax in axs]
+    [ax.legend(loc='lower right', frameon=False) for ax in axs]
+    [ax.hlines(dfb['val_acc'].max(), 0, medalpltdata.shape[0],
+            color='lightblue', linestyle='--') for ax in axs]
+    # --> handle xticks.
+    axs[-1].set_xlabel('Percent Dataset Labeled')
+    axs[len(axs)//2].set_ylabel('Validation Accuracy')
+    axs[0].xaxis.set_major_locator(mticker.LinearLocator(10))
+    axs[0].xaxis.set_major_formatter(
+        mticker.FuncFormatter(lambda x, pos: medalpltdata.index[int(x)][0]))
+    axs[0].figure.savefig(join(analysis_dir, 'varying_online_frac%s.png'
+                               % ("_present" if presentation_mode else "")))
+main_perf_plot(False)
+main_perf_plot(True)
 
 
 # get one row per experiment per al iter.
