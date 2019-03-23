@@ -132,7 +132,9 @@ function run_cmd_and_log() {
   lockfile_path=./data/run/$run_id
   lockfile_runonce=yes
 
+  (
   use_lockfile ${lockfile_path} ${lockfile_runonce}
   log_fp="./data/log/$run_id-`date +%Y%m%dT%H%M%S`.log"
   run_cmd "$run_id" "$cmd" 2>&1 | tee $log_fp
+  )
 }
