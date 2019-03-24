@@ -26,5 +26,5 @@ else
   # execute parselog in parallel on all log files found
   find data/log/  -type f -name "*.log" -o -type f -name "*.txt" \
       | grep $overwrite_plots \
-      | parallel run_parselog_py $overwrite_plots
+      | parallel run_parselog_py "$overwrite_plots"
 fi

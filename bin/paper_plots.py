@@ -15,15 +15,15 @@ train_set_size = 949
 fp_baseline = "data/_analysis/R6-20190315T030959.log/logdata.csv"
 fp_medal = "data/_analysis/RM6-20190319T005512.log/logdata.csv"
 fps_varying_online_frac = [
-    "data/_analysis/RMO6-0b-20190321T201811.log/logdata.csv",
-    "data/_analysis/RMO6-100-20190317T220155.log/logdata.csv",
-    "data/_analysis/RMO6-12.5-20190318T083457.log/logdata.csv",
-    "data/_analysis/RMO6-25-20190318T042625.log/logdata.csv",
-    "data/_analysis/RMO6-37.5-20190318T140051.log/logdata.csv",
-    "data/_analysis/RMO6-50-20190318T024221.log/logdata.csv",
-    "data/_analysis/RMO6-62.5-20190318T122213.log/logdata.csv",
-    "data/_analysis/RMO6-75-20190318T053954.log/logdata.csv",
-    "data/_analysis/RMO6-87.5-20190318T110523.log/logdata.csv",
+    "data/_analysis/RMO6-0d-20190323T003224.log/logdata.csv",
+    "data/_analysis/RMO6-100d-20190323T082726.log/logdata.csv",
+    "data/_analysis/RMO6-12.5d-20190322T142710.log/logdata.csv",
+    "data/_analysis/RMO6-25d-20190323T152428.log/logdata.csv",
+    "data/_analysis/RMO6-37.5d-20190322T051602.log/logdata.csv",
+    "data/_analysis/RMO6-50d-20190323T030509.log/logdata.csv",
+    "data/_analysis/RMO6-62.5d-20190322T092309.log/logdata.csv",
+    "data/_analysis/RMO6-75d-20190323T185418.log/logdata.csv",
+    "data/_analysis/RMO6-87.5d-20190322T173655.log/logdata.csv",
 ]
 
 
@@ -147,10 +147,33 @@ f.savefig(join(analysis_dir, 'num_img_patches_processed.png'))
 g = dfo.groupby('fp')\
     .apply(lambda x: x.sort_values(['val_acc', 'pct_dataset_labeled'],
                                    ascending=False).head(15))\
-    [['val_acc', 'pct_dataset_labeled']]\
+    .sort_values('online_sample_frac')\
+    [['val_acc', 'pct_dataset_labeled', 'al_iter', 'online_sample_frac']]\
     .droplevel(0).droplevel('log_line_num').reset_index()
-f, ax = plt.subplots(1, 1)
-sns.scatterplot('val_acc', 'pct_dataset_labeled', hue='fp', data=g, ax=ax)
+f, ax = plt.subplots(1, 1, figsize=(10, 8))
+# --> add jitter
+x_jitter = g['val_acc'].value_counts().index.to_series()\
+    .sort_values().diff().min() / 6
+y_jitter = g['pct_dataset_labeled'].value_counts().index.to_series()\
+    .sort_values().diff().min() / 6
+g['val_acc'] += x_jitter * (np.random.randint(-1, 1, g.shape[0])*2+1)
+g['pct_dataset_labeled'] += \
+    y_jitter * (np.random.randint(-1, 1, g.shape[0])*2+1)
+# --> make scatter plot
+sns.scatterplot(
+    'val_acc', 'pct_dataset_labeled', hue='fp', data=g, ax=ax,
+    #  palette=sns.palplot(sns.color_palette("cubehelix", 9))
+    #  palette=sns.palplot(sns.color_palette("coolwarm", 9))
+    palette=sns.palplot(sns.color_palette("hsv", 9))
+    #  palette='GnBu_d')
+)
+ax.vlines(dfb['val_acc'].max(), 0, 100, linestyle='--',
+          color='lightblue', alpha=.8, label='ResNet18 (best accuracy)')
+ax.vlines(dfm['val_acc'].max(), 0, 100, linestyle='--', alpha=.5,
+          label='MedAL (best accuracy)')
+ax.legend(framealpha=.8, loc='lower center')
+
+
 ax.set_title("Top 15 highest validation accuracies for each experiment")
 f.savefig(join(analysis_dir, 'topn_best_val_accs_per_experiment.png'))
 
@@ -167,7 +190,7 @@ _bpm2 = dfo[['pct_dataset_labeled']]\
 bpm = pd.concat([_bpm1, _bpm2], axis=1)
 
 f, (ax1, ax2) = plt.subplots(2, 1)
-bpm.drop('pct_dataset_labeled', axis=1).plot.bar(legend=False, ax=ax1, rot=30)
+bpm.drop('pct_dataset_labeled', axis=1).plot.bar(legend=False, ax=ax1, rot=30, ylim=(.6, 1))
 ax2.table(
     cellText=bpm.round(4).sort_values('val_acc', ascending=False)\
     .reset_index().values,
@@ -198,8 +221,5 @@ f = ax.figure
 f.suptitle("Validation Accuracy vs Epoch")
 #  f.tight_layout(rect=[0, 0.03, 1, 0.95])
 f.savefig(join(analysis_dir, "baselines_acc_vs_epoch.png"))
-
-import IPython ; IPython.embed() ; import sys ; sys.exit()
-
 
 #  import IPython ; IPython.embed() ; import sys ; sys.exit()
