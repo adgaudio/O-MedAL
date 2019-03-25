@@ -36,8 +36,8 @@ dfb = pd.read_csv(fp_baseline).query('perf').set_index('epoch')
 dfm = pd.read_csv(fp_medal).query('perf')
 dfs = {'Online - ' + get_train_frac(fp): pd.read_csv(fp)
        for fp in fps_varying_online_frac}
-dfo = pd.concat(dfs, names=['fp', 'log_line_num'])
-dfo['online_sample_frac'] = dfo.index.get_level_values('fp')\
+dfo = pd.concat(dfs, names=['Experiment', 'log_line_num'])
+dfo['online_sample_frac'] = dfo.index.get_level_values('Experiment')\
     .str.extract('Online - (.*)').astype('float').values
 # --> reindex dfm and dfo to guarantee if the run was incomplete we show empty
 # space in plot that would represent usage of the full dataset.
@@ -68,12 +68,12 @@ dfo['num_img_patches_processed'] = \
     (points_to_label_per_al_iter
      + dfo['online_sample_frac']/100
      * dfo['al_iter'] * points_to_label_per_al_iter)\
-    .unstack('fp').cumsum().stack('fp')\
+    .unstack('Experiment').cumsum().stack('Experiment')\
     .swaplevel().sort_index()
 
 # plot 1: val acc vs percent dataset labeled
 # --> prepare results for plot
-def main_perf_plot(presentation_mode=False):
+def main_perf_plot(subset_experiments=()):
     medalpltdata = dfm\
         .set_index(['pct_dataset_labeled_int', 'epoch'])['val_acc']\
         .rename('MedAL')
@@ -82,11 +82,10 @@ def main_perf_plot(presentation_mode=False):
         .set_index(['pct_dataset_labeled_int', 'epoch'], append=True)\
         .drop('al_iter', axis=1)\
         .droplevel('log_line_num')['val_acc']\
-        .unstack('fp')\
+        .unstack('Experiment')\
         .reindex(medalpltdata.index)
-    if presentation_mode:
-        onlinepltdata = onlinepltdata\
-            [['Online - 0', 'Online - 37.5', 'Online - 62.5', 'Online - 100']]
+    if subset_experiments:
+        onlinepltdata = onlinepltdata[subset_experiments]
     # --> add the plots
     axs = onlinepltdata\
         .plot(ylim=(0, 1), color='red', subplots=True, figsize=(10, 8))
@@ -102,9 +101,11 @@ def main_perf_plot(presentation_mode=False):
     axs[0].xaxis.set_major_formatter(
         mticker.FuncFormatter(lambda x, pos: medalpltdata.index[int(x)][0]))
     axs[0].figure.savefig(join(analysis_dir, 'varying_online_frac%s.png'
-                               % ("_present" if presentation_mode else "")))
-main_perf_plot(False)
-main_perf_plot(True)
+                               % len(subset_experiments)))
+main_perf_plot()
+main_perf_plot([
+    'Online - 0', 'Online - 37.5', 'Online - 87.5', 'Online - 100'])
+main_perf_plot(['Online - 87.5'])
 
 
 # get one row per experiment per al iter.
@@ -130,7 +131,7 @@ for ax in [ax1, ax2]:
     ax.hlines(dfb['num_img_patches_processed'].max(),
             0, 100, color='lightblue', linestyle='--', label='Baseline ResNet')
     ax.legend()
-ax1.set_ylabel('Image patches processed')
+ax1.set_ylabel('Number of Training Examples Processed')
 ax1.set_xlabel('Percent Dataset Labeled')
 ax2.set_xlabel('Percent Dataset Labeled')
 f.savefig(join(analysis_dir, 'num_img_patches_processed.png'))
@@ -144,7 +145,7 @@ f.savefig(join(analysis_dir, 'num_img_patches_processed.png'))
 #  plt.show()
 
 # plot 3: best performing model
-g = dfo.groupby('fp')\
+g = dfo.groupby('Experiment')\
     .apply(lambda x: x.sort_values(['val_acc', 'pct_dataset_labeled'],
                                    ascending=False).head(15))\
     .sort_values('online_sample_frac')\
@@ -161,7 +162,7 @@ g['pct_dataset_labeled'] += \
     y_jitter * (np.random.randint(-1, 1, g.shape[0])*2+1)
 # --> make scatter plot
 sns.scatterplot(
-    'val_acc', 'pct_dataset_labeled', hue='fp', data=g, ax=ax,
+    'val_acc', 'pct_dataset_labeled', hue='Experiment', data=g, ax=ax,
     #  palette=sns.palplot(sns.color_palette("cubehelix", 9))
     #  palette=sns.palplot(sns.color_palette("coolwarm", 9))
     palette=sns.palplot(sns.color_palette("hsv", 9))
@@ -171,6 +172,9 @@ ax.vlines(dfb['val_acc'].max(), 0, 100, linestyle='--',
           color='lightblue', alpha=.8, label='ResNet18 (best accuracy)')
 ax.vlines(dfm['val_acc'].max(), 0, 100, linestyle='--', alpha=.5,
           label='MedAL (best accuracy)')
+ax.plot(*dfm.loc[dfm['val_acc'].idxmax()]\
+         .loc[['val_acc', 'pct_dataset_labeled']].values,
+         marker='x', color='green')
 ax.legend(framealpha=.8, loc='lower center')
 
 
@@ -178,12 +182,12 @@ ax.set_title("Top 15 highest validation accuracies for each experiment")
 f.savefig(join(analysis_dir, 'topn_best_val_accs_per_experiment.png'))
 
 _bpm1 = dfo[['val_acc']]\
-    .unstack('fp').max().rename('val_acc').to_frame().T.droplevel(0, axis=1)\
+    .unstack('Experiment').max().rename('val_acc').to_frame().T.droplevel(0, axis=1)\
     .join(dfm[['val_acc']].max().rename('MedAL'))\
     .join(dfb[['val_acc']].max().rename('ResNet18'))\
     .T
 _bpm2 = dfo[['pct_dataset_labeled']]\
-    .unstack('fp').max().rename('pct_dataset_labeled').to_frame().T.droplevel(0, axis=1)\
+    .unstack('Experiment').max().rename('pct_dataset_labeled').to_frame().T.droplevel(0, axis=1)\
     .join(dfm[['pct_dataset_labeled']].max().rename('MedAL'))\
     .join(pd.Series({'pct_dataset_labeled': 100.0}, name='ResNet18'))\
     .T
@@ -222,4 +226,4 @@ f.suptitle("Validation Accuracy vs Epoch")
 #  f.tight_layout(rect=[0, 0.03, 1, 0.95])
 f.savefig(join(analysis_dir, "baselines_acc_vs_epoch.png"))
 
-#  import IPython ; IPython.embed() ; import sys ; sys.exit()
+import IPython ; IPython.embed() ; import sys ; sys.exit()
