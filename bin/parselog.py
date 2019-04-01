@@ -151,8 +151,9 @@ def _parse_log_sanitize_and_clean(df):
 
     # sanity check
     tmp = df.query('perf').groupby(['al_iter'])['epoch'].count()
-    if tmp.shape[0] > 1:
-        assert 0 == tmp.var(), "bug trying to ignore redundant data"
+    if tmp.shape[0] > 1 and 0 != tmp.var():
+        print("WARNING: Varying rows of data per al iter.  Unless early"
+              " stopping was applied to this model, something may be wrong.")
 
     # sanity check data:
     assert (df['val_acc'].isnull() == df['val_loss'].isnull()).all()
