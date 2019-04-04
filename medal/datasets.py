@@ -68,7 +68,7 @@ class Messidor(GlobImageDir):
         sample = super().__getitem__(index)
         fname = os.path.basename(sample['fp'])
         sample.update(dict(self.csv_data.loc[fname]))
-        if self.getitem_transform:
+        if getitem_transform and self.getitem_transform is not None:
             return self.getitem_transform(sample)
         else:
             return sample
