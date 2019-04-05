@@ -111,7 +111,7 @@ def main_perf_plot(subset_experiments=(), add_medal_to_legend=False):
     axs[len(axs)//2].set_ylabel('Validation Accuracy')
     axs[0].xaxis.set_major_locator(mticker.LinearLocator(10))
     axs[0].xaxis.set_major_formatter(
-        mticker.FuncFormatter(lambda x, pos: medalpltdata.index[int(x)][0]))
+        mticker.FuncFormatter(lambda x, pos: min(100, medalpltdata.index[int(x)][0])))
     axs[0].figure.savefig(join(analysis_dir, 'varying_online_frac%s.png'
                                % len(subset_experiments)))
 main_perf_plot()
