@@ -44,14 +44,14 @@ def get_train_frac(fp):
 
 
 # load the data
-dfb = pd.read_csv(fp_baseline).query('perf').set_index('epoch')
-dfm = pd.read_csv(fp_medal).query('perf')
-dfs = {'Online - ' + get_train_frac(fp): pd.read_csv(fp)
+dfb = pd.read_csv(fp_baseline).query('perf').sort_values('epoch').set_index('epoch')
+dfm = pd.read_csv(fp_medal).query('perf').sort_values(['al_iter', 'epoch'])
+dfs = {'Online - ' + get_train_frac(fp): pd.read_csv(fp).query('perf')
        for fp in fps_varying_online_frac}
 dfo = pd.concat(dfs, names=['Experiment', 'log_line_num'])
 dfo['online_sample_frac'] = dfo.index.get_level_values('Experiment')\
     .str.extract('Online - (.*)').astype('float').values
-dfo = dfo.sort_values('online_sample_frac')
+dfo = dfo.sort_values(['online_sample_frac', 'al_iter', 'epoch'])
 # --> reindex dfm and dfo to guarantee if the run was incomplete we show empty
 # space in plot that would represent usage of the full dataset.
 _mi = pd.MultiIndex.from_product([
@@ -59,21 +59,24 @@ _mi = pd.MultiIndex.from_product([
 #  dfm = dfm.set_index(['al_iter', 'epoch']).reindex(_mi).reset_index()
 assert dfm.dropna(axis=1, how='all').dropna().groupby('al_iter').count()['epoch'].min() >= dfo['epoch'].max()
 
-# compute percent data seen (for x axis of plot)
+# compute percent data labeled (for x axis of plot)
 for df in [dfo, dfm]:
     N = df['al_iter'].values * points_to_label_per_al_iter
     df['pct_dataset_labeled_int'] = (N / train_set_size * 100).astype(int)
     x = (N / train_set_size * 100)
-    x[x > 100] = 100  # clip ends, since the reindexing operation would make seem like over 100%
+    #  x[x > 100] = 100  # clip ends, since the points_to_label_per_al_iter is not divisble by train_set_size and since the reindexing operation would make seem like over 100%
     df['pct_dataset_labeled'] = x
 
+# compute num examples processed.  medal and omedal have +1 because initial
+# train set is 1 + points_to_label_per_al_iter.
 dfb['num_img_patches_processed'] = dfb.index * train_set_size
 dfm['num_img_patches_processed'] = \
-    (dfm['al_iter'].values * points_to_label_per_al_iter).cumsum()
+    (dfm['al_iter'] * points_to_label_per_al_iter + 1).cumsum()
 dfo['num_img_patches_processed'] = \
     (points_to_label_per_al_iter
-     + dfo['online_sample_frac']/100
-     * dfo['al_iter'] * points_to_label_per_al_iter)\
+     + np.floor(
+         dfo['online_sample_frac']/100
+         * (1 + (dfo['al_iter']-1) * points_to_label_per_al_iter)))\
     .unstack('Experiment').cumsum().stack('Experiment')\
     .swaplevel().sort_index()
 
@@ -144,6 +147,7 @@ def plot_training_time(logy=True, fracs=None):
     # plot exponential curves for experiments and MedAL
     tmp.drop('MedAL', axis=1).plot(ax=ax, logy=logy, legend=False)
     tmp['MedAL'].plot(ax=ax, style='-.', logy=logy, color='black', legend=False)
+
     # plot baseline horizontal line
     ax.hlines(baseline_num_processed, 0, 100,
               color='dodgerblue', linestyle='--', label='Baseline ResNet')
