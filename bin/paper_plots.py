@@ -135,9 +135,27 @@ Z['process_more_pts_than_baseline'] = Z['num_img_patches_processed'] > baseline_
 Z['val_acc_worse_than_baseline'] = Z['val_acc'] < dfb['val_acc'].max()
 
 
+# get keypoints for next couple plots
+_tmp = dfo[['val_acc', 'pct_dataset_labeled', 'num_img_patches_processed']]
+keypoints = [
+    # online experiments
+    (_tmp.loc[dfo['val_acc'].idxmax()], 'dimgray'),
+    (_tmp.loc[dfo.query('online_sample_frac == 37.5')['val_acc'].idxmax()],
+     'red'),
+    (_tmp.loc[dfo.query('online_sample_frac == 87.5')
+             .sort_values('val_acc', ascending=False)
+             .head(5)['pct_dataset_labeled'].idxmin()],
+     'dimgray'),
+    (_tmp.loc[ _tmp.loc[_tmp['val_acc'] >= dfb['val_acc'].max()]['num_img_patches_processed'].idxmin()],
+     'red'),
+    # medal
+    (dfm.loc[dfm['val_acc'].idxmax()].loc[['val_acc', 'pct_dataset_labeled', 'num_img_patches_processed']]\
+     .rename(('MedAL', '')), 'black')
+]
+
 # plot 2: training time (number of image patches used)
 # --> plot amount of data used as we change the sample frac
-def plot_training_time(logy=True, fracs=None):
+def plot_training_time(logy=True, fracs=None, use_keypoints=True):
     f, ax = plt.subplots(1, 1, figsize=(6, 4))
     tmp = Z.set_index(['pct_dataset_labeled', 'online_sample_frac'])\
         ['num_img_patches_processed']\
@@ -184,6 +202,9 @@ def plot_training_time(logy=True, fracs=None):
             'pct_dataset_labeled', 'num_img_patches_processed', marker='*',
             ax=ax, c='black', s=(norm(points['val_acc'].values)*200)[-1]
         )
+    if use_keypoints:
+        [ax.plot(xy[1], xy[2], marker, markersize=ms, color=color)
+        for xy, color in keypoints for marker, ms in [('+', 35), ('P', 15)]]
 
     ax.set_ylabel('Number of Examples Processed%s'
                   % (' (log scale)' if logy else ''))
@@ -195,13 +216,16 @@ def plot_training_time(logy=True, fracs=None):
 
     f.savefig(join(
         analysis_dir,
-        'num_img_patches_processed%s%s.png'
-        % (("_logy" if logy else ""), len(points))))
+        'num_img_patches_processed%s%s%s.png'
+        % (("_logy" if logy else ""), len(points),
+           '_kp' if use_keypoints else '')))
 
-plot_training_time(logy=False)
-plot_training_time(logy=True, fracs=[])
-plot_training_time(logy=True, fracs='all')
-plot_training_time(logy=True, fracs=['87.5', '37.5'])
+plot_training_time(logy=False, fracs=None, use_keypoints=False)
+plot_training_time(logy=True, fracs=[], use_keypoints=False)
+plot_training_time(logy=True, fracs=[], use_keypoints=False)
+plot_training_time(logy=True, fracs=[], use_keypoints=True)
+plot_training_time(logy=True, fracs='all', use_keypoints=False)
+plot_training_time(logy=True, fracs=['87.5', '37.5'], use_keypoints=False)
 
 # latex table of val accs above and below baseline.
 with open(join(analysis_dir, 'table.tex'), 'w') as fout:
@@ -253,22 +277,6 @@ ax.hlines(dfm['val_acc'].max(), 0, 100, linestyle='--', alpha=.5,
 ax.legend(framealpha=.7, loc='left center', ncol=1)
 ax.set_title("Top %s Highest Validation Accuracies For Each Experiment" % topn)
 # add annotations to key points of interest on plot
-tmp = dfo[['val_acc', 'pct_dataset_labeled', 'num_img_patches_processed']]
-keypoints = [
-    # online experiments
-    (tmp.loc[dfo['val_acc'].idxmax()], 'dimgray'),
-    (tmp.loc[dfo.query('online_sample_frac == 37.5')['val_acc'].idxmax()],
-     'red'),
-    (tmp.loc[dfo.query('online_sample_frac == 87.5')
-             .sort_values('val_acc', ascending=False)
-             .head(5)['pct_dataset_labeled'].idxmin()],
-     'dimgray'),
-    (tmp.loc[ tmp.loc[tmp['val_acc'] >= dfb['val_acc'].max()]['num_img_patches_processed'].idxmin()],
-     'red'),
-    # medal
-    (dfm.loc[dfm['val_acc'].idxmax()].loc[['val_acc', 'pct_dataset_labeled', 'num_img_patches_processed']]\
-     .rename(('MedAL', '')), 'black')
-]
 with open(join(analysis_dir, 'topn_keypoint_table.tex'), 'w') as fout:
     print("\n\n  ---  keypoint table  ---")
     d = pd.DataFrame([x[0] for x in keypoints])
