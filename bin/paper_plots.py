@@ -25,7 +25,8 @@ train_set_size = 949
 
 fp_baseline = "data/_analysis/R6-20190315T030959.log/logdata.csv"
 #  fp_medal = "data/_analysis/RM6-20190319T005512.log/logdata.csv"
-fp_medal = "data/_analysis/RM6e-20190324T140934.log/logdata.csv"
+fp_medal_patience10 = "data/_analysis/RM6e-20190324T140934.log/logdata.csv"
+fp_medal_patience20 = "data/_analysis/RM6g-20190406T222759.log/logdata.csv"
 fps_varying_online_frac = [
     "data/_analysis/RMO6-0d-20190323T003224.log/logdata.csv",
     "data/_analysis/RMO6-12.5d-20190322T142710.log/logdata.csv",
@@ -45,22 +46,24 @@ def get_train_frac(fp):
 
 # load the data
 dfb = pd.read_csv(fp_baseline).query('perf').sort_values('epoch').set_index('epoch')
-dfm = pd.read_csv(fp_medal).query('perf').sort_values(['al_iter', 'epoch'])
+dfm20 = pd.read_csv(fp_medal_patience20).query('perf').sort_values(['al_iter', 'epoch'])
+dfm10 = pd.read_csv(fp_medal_patience10).query('perf').sort_values(['al_iter', 'epoch'])
 dfs = {'Online - ' + get_train_frac(fp): pd.read_csv(fp).query('perf')
        for fp in fps_varying_online_frac}
 dfo = pd.concat(dfs, names=['Experiment', 'log_line_num'])
 dfo['online_sample_frac'] = dfo.index.get_level_values('Experiment')\
     .str.extract('Online - (.*)').astype('float').values
 dfo = dfo.sort_values(['online_sample_frac', 'al_iter', 'epoch'])
-# --> reindex dfm and dfo to guarantee if the run was incomplete we show empty
+# --> reindex dfm20 and dfo to guarantee if the run was incomplete we show empty
 # space in plot that would represent usage of the full dataset.
 _mi = pd.MultiIndex.from_product([
         np.arange(1, 49), np.arange(1, 151)], names=['al_iter', 'epoch'])
-#  dfm = dfm.set_index(['al_iter', 'epoch']).reindex(_mi).reset_index()
-assert dfm.dropna(axis=1, how='all').dropna().groupby('al_iter').count()['epoch'].min() >= dfo['epoch'].max()
+#  dfm20 = dfm20.set_index(['al_iter', 'epoch']).reindex(_mi).reset_index()
+assert dfm20.dropna(axis=1, how='all').dropna().groupby('al_iter').count()['epoch'].min() >= dfo['epoch'].max()
+assert dfm10.dropna(axis=1, how='all').dropna().groupby('al_iter').count()['epoch'].min() >= dfo['epoch'].max()
 
 # compute percent data labeled (for x axis of plot)
-for df in [dfo, dfm]:
+for df in [dfo, dfm10, dfm20]:
     N = df['al_iter'].values * points_to_label_per_al_iter
     df['pct_dataset_labeled_int'] = (N / train_set_size * 100).astype(int)
     x = (N / train_set_size * 100)
@@ -70,8 +73,10 @@ for df in [dfo, dfm]:
 # compute num examples processed.  medal and omedal have +1 because initial
 # train set is 1 + points_to_label_per_al_iter.
 dfb['num_img_patches_processed'] = dfb.index * train_set_size
-dfm['num_img_patches_processed'] = \
-    (dfm['al_iter'] * points_to_label_per_al_iter + 1).cumsum()
+dfm10['num_img_patches_processed'] = \
+    (dfm10['al_iter'] * points_to_label_per_al_iter + 1).cumsum()
+dfm20['num_img_patches_processed'] = \
+    (dfm20['al_iter'] * points_to_label_per_al_iter + 1).cumsum()
 dfo['num_img_patches_processed'] = \
     (points_to_label_per_al_iter
      + np.floor(
@@ -83,9 +88,9 @@ dfo['num_img_patches_processed'] = \
 # plot 1: val acc vs percent dataset labeled
 # --> prepare results for plot
 def main_perf_plot(subset_experiments=(), add_medal_to_legend=False):
-    medalpltdata = dfm\
+    medalpltdata = dfm20\
         .set_index(['pct_dataset_labeled_int', 'epoch'])['val_acc']\
-        .rename('MedAL')
+        .rename('MedAL (patience=20)')
     onlinepltdata = dfo\
         .query('perf')\
         .set_index(['pct_dataset_labeled_int', 'epoch'], append=True)\
@@ -149,8 +154,10 @@ keypoints = [
     (_tmp.loc[ _tmp.loc[_tmp['val_acc'] >= dfb['val_acc'].max()]['num_img_patches_processed'].idxmin()],
      'red'),
     # medal
-    (dfm.loc[dfm['val_acc'].idxmax()].loc[['val_acc', 'pct_dataset_labeled', 'num_img_patches_processed']]\
-     .rename(('MedAL', '')), 'black')
+    (dfm20.loc[dfm20['val_acc'].idxmax()].loc[['val_acc', 'pct_dataset_labeled', 'num_img_patches_processed']]\
+     .rename(('MedAL (patience=20)', '')), 'black'),
+    (dfm10.loc[dfm10['val_acc'].idxmax()].loc[['val_acc', 'pct_dataset_labeled', 'num_img_patches_processed']]\
+     .rename(('MedAL (patience=10)', '')), 'darkblue'),
 ]
 
 # plot 2: training time (number of image patches used)
@@ -160,11 +167,17 @@ def plot_training_time(logy=True, fracs=None, use_keypoints=True):
     tmp = Z.set_index(['pct_dataset_labeled', 'online_sample_frac'])\
         ['num_img_patches_processed']\
         .unstack('online_sample_frac')\
-        .join(dfm.groupby('pct_dataset_labeled')['num_img_patches_processed']
-              .max().rename('MedAL'), how='outer')
+        .join(dfm20.groupby('pct_dataset_labeled')['num_img_patches_processed']
+              .max().rename('MedAL (patience=20)'), how='outer')\
+        .join(dfm10.groupby('pct_dataset_labeled')['num_img_patches_processed']
+              .max().rename('MedAL (patience=10)'), how='outer')
     # plot exponential curves for experiments and MedAL
-    tmp.drop('MedAL', axis=1).plot(ax=ax, logy=logy, legend=False)
-    tmp['MedAL'].plot(ax=ax, style='-.', logy=logy, color='black', legend=False)
+    tmp\
+        .drop('MedAL (patience=20)', axis=1)\
+        .drop('MedAL (patience=10)', axis=1)\
+        .plot(ax=ax, logy=logy, legend=False)
+    tmp['MedAL (patience=20)'].plot(ax=ax, style='-.', logy=logy, color='black', legend=False)
+    tmp['MedAL (patience=10)'].plot(ax=ax, style=':', logy=logy, color='darkblue', legend=False)
 
     # plot baseline horizontal line
     ax.hlines(baseline_num_processed, 0, 100,
@@ -185,7 +198,8 @@ def plot_training_time(logy=True, fracs=None, use_keypoints=True):
         points = points.append(Z.loc[ Z.loc[Z['val_acc'] >= dfb['val_acc'].max()]['num_img_patches_processed'].idxmin()])
 
         #  add medal to points
-        points = points.append(dfm.loc[dfm['val_acc'].idxmax()])
+        points = points.append(dfm20.loc[dfm20['val_acc'].idxmax()])
+        points = points.append(dfm10.loc[dfm10['val_acc'].idxmax()])
 
         def norm(arr, n=50):
             arr = arr - arr.min()/n*(n-1)
@@ -260,6 +274,12 @@ g['val_acc'] += x_jitter * (np.random.randint(-1, 1, g.shape[0])*2+1)
 g['pct_dataset_labeled'] += \
     y_jitter * (np.random.randint(-1, 1, g.shape[0])*2+1)
 # --> make scatter plot
+ax.hlines(dfb['val_acc'].max(), 0, 100, linestyle='--',
+          color='dodgerblue', alpha=1, label='ResNet18 (best accuracy)')
+ax.hlines(dfm20['val_acc'].max(), 0, 100, linestyle='-.', alpha=1,
+          color='black', label='MedAL, patience=20\n    (best accuracy)')
+ax.hlines(dfm10['val_acc'].max(), 0, 100, linestyle=':', alpha=1,
+          color='darkblue', label='MedAL, patience=10\n    (best accuracy)')
 sns.scatterplot(
     'Percent Dataset Labeled', 'Validation Accuracy', hue='Experiment',
     data=g.rename({
@@ -270,10 +290,6 @@ sns.scatterplot(
     palette=sns.palplot(sns.color_palette("hsv", 9))
     #  palette='GnBu_d')
 )
-ax.hlines(dfb['val_acc'].max(), 0, 100, linestyle='--',
-          color='dodgerblue', alpha=.8, label='ResNet18 (best accuracy)')
-ax.hlines(dfm['val_acc'].max(), 0, 100, linestyle='--', alpha=.5,
-          color='black', label='MedAL (best accuracy)')
 ax.legend(framealpha=.7, loc='left center', ncol=1)
 ax.set_title("Top %s Highest Validation Accuracies For Each Experiment" % topn)
 # add annotations to key points of interest on plot
@@ -297,12 +313,12 @@ f.savefig(join(analysis_dir, 'topn_best_val_accs_per_experiment.png'))
 # useless bar plot
 _bpm1 = dfo[['val_acc']]\
     .unstack('Experiment').max().rename('val_acc').to_frame().T.droplevel(0, axis=1)\
-    .join(dfm[['val_acc']].max().rename('MedAL'))\
+    .join(dfm20[['val_acc']].max().rename('MedAL (patience=20)'))\
     .join(dfb[['val_acc']].max().rename('ResNet18'))\
     .T
 _bpm2 = dfo[['pct_dataset_labeled']]\
     .unstack('Experiment').max().rename('pct_dataset_labeled').to_frame().T.droplevel(0, axis=1)\
-    .join(dfm[['pct_dataset_labeled']].max().rename('MedAL'))\
+    .join(dfm20[['pct_dataset_labeled']].max().rename('MedAL (patience=20)'))\
     .join(pd.Series({'pct_dataset_labeled': 100.0}, name='ResNet18'))\
     .T
 bpm = pd.concat([_bpm1, _bpm2], axis=1)
@@ -344,10 +360,10 @@ f.suptitle("Validation Accuracy vs Epoch")
 #  f.tight_layout(rect=[0, 0.03, 1, 0.95])
 f.savefig(join(analysis_dir, "baselines_acc_vs_epoch.png"))
 
-import IPython ; IPython.embed() ; import sys ; sys.exit()
+#  import IPython ; IPython.embed() ; import sys ; sys.exit()
 
 # TODO:
 # the model that achieves same or better accuracy than baseline, but uses min
 # computation
-Z.loc[ Z.loc[Z['val_acc'] >= dfb['val_acc'].max()]['num_img_patches_processed'].idxmin()]
+#  Z.loc[ Z.loc[Z['val_acc'] >= dfb['val_acc'].max()]['num_img_patches_processed'].idxmin()]
 #  (baseline_num_processed - Z.loc[Z['val_acc'] >= dfb['val_acc'].max()]['num_img_patches_processed'].min() ) / baseline_num_processed
