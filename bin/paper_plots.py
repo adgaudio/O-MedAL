@@ -116,7 +116,7 @@ def main_perf_plot(subset_experiments=(), add_medal_to_legend=False):
             color='dodgerblue', linestyle='--') for ax in axs]
     # --> handle xticks.
     axs[-1].set_xlabel('Percent Dataset Labeled')
-    axs[len(axs)//2].set_ylabel('Validation Accuracy')
+    axs[len(axs)//2].set_ylabel('Test Accuracy')
     axs[0].xaxis.set_major_locator(mticker.LinearLocator(10))
     axs[0].xaxis.set_major_formatter(
         mticker.FuncFormatter(lambda x, pos: min(100, medalpltdata.index[int(x)][0])))
@@ -135,7 +135,7 @@ Z = dfo\
           'num_img_patches_processed': 'max',
           'val_acc': 'max'})\
     .reset_index()
-baseline_num_processed = dfb['num_img_patches_processed'].max()
+baseline_num_processed = dfb.query('epoch < 101')['num_img_patches_processed'].max()
 Z['process_more_pts_than_baseline'] = Z['num_img_patches_processed'] > baseline_num_processed
 Z['val_acc_worse_than_baseline'] = Z['val_acc'] < dfb['val_acc'].max()
 
@@ -274,24 +274,24 @@ g['val_acc'] += x_jitter * (np.random.randint(-1, 1, g.shape[0])*2+1)
 g['pct_dataset_labeled'] += \
     y_jitter * (np.random.randint(-1, 1, g.shape[0])*2+1)
 # --> make scatter plot
+sns.scatterplot(
+    'Percent Dataset Labeled', 'Test Accuracy', hue='Experiment',
+    data=g.rename({
+        'pct_dataset_labeled': 'Percent Dataset Labeled',
+        'val_acc': 'Test Accuracy', }, axis=1), ax=ax,
+    #  palette=sns.palplot(sns.color_palette("cubehelix", 9))
+    #  palette=sns.palplot(sns.color_palette("coolwarm", 9))
+    palette=sns.palplot(sns.color_palette("hsv", 9))
+    #  palette='GnBu_d')
+)
 ax.hlines(dfb['val_acc'].max(), 0, 100, linestyle='--',
           color='dodgerblue', alpha=1, label='ResNet18 (best accuracy)')
 ax.hlines(dfm20['val_acc'].max(), 0, 100, linestyle='-.', alpha=1,
           color='black', label='MedAL, patience=20\n    (best accuracy)')
 ax.hlines(dfm10['val_acc'].max(), 0, 100, linestyle=':', alpha=1,
           color='darkblue', label='MedAL, patience=10\n    (best accuracy)')
-sns.scatterplot(
-    'Percent Dataset Labeled', 'Validation Accuracy', hue='Experiment',
-    data=g.rename({
-        'pct_dataset_labeled': 'Percent Dataset Labeled',
-        'val_acc': 'Validation Accuracy', }, axis=1), ax=ax,
-    #  palette=sns.palplot(sns.color_palette("cubehelix", 9))
-    #  palette=sns.palplot(sns.color_palette("coolwarm", 9))
-    palette=sns.palplot(sns.color_palette("hsv", 9))
-    #  palette='GnBu_d')
-)
-ax.legend(framealpha=.7, loc='left center', ncol=1)
-ax.set_title("Top %s Highest Validation Accuracies For Each Experiment" % topn)
+ax.legend(framealpha=.4, frameon=True, bbox_to_anchor=(0, .38), loc='center left', ncol=2)
+ax.set_title("Top %s Highest Test Accuracies For Each Experiment" % topn)
 # add annotations to key points of interest on plot
 with open(join(analysis_dir, 'topn_keypoint_table.tex'), 'w') as fout:
     print("\n\n  ---  keypoint table  ---")
@@ -302,7 +302,7 @@ with open(join(analysis_dir, 'topn_keypoint_table.tex'), 'w') as fout:
     fout.write(d.to_latex())
     print(d.to_string())
 
-[ax.plot(xy[1], xy[0], marker, markersize=ms, color=color)
+[ax.plot(xy[1], xy[0], marker, markersize=ms, color=color, alpha=.6)
 for xy, color in keypoints for marker, ms in [('+', 35), ('P', 15)]]
 #  [ax.add_patch(patches.Ellipse([xy[0], xy[1]], 0.0075, 6, facecolor='none',
                               #  linewidth=15, alpha=.8, edgecolor=color, lw=4))
@@ -328,13 +328,13 @@ bpm.drop('pct_dataset_labeled', axis=1).plot.bar(legend=False, ax=ax1, rot=30, y
 ax2.table(
     cellText=bpm.round(4).sort_values('val_acc', ascending=False)\
     .reset_index().values,
-    colLabels=['Model', 'Best Validation Acc', 'Percent dataset labeled'],
+    colLabels=['Model', 'Best Test Acc', 'Percent dataset labeled'],
     loc='center')
 ax2.axis('tight')
 ax2.axis('off')
 f.tight_layout()
 f.subplots_adjust(top=0.92, hspace=.55)
-f.suptitle("Best Validation Accuracy")
+f.suptitle("Best Test Accuracy")
 f.savefig(join(analysis_dir, 'best_model_val_acc.png'))
 
 
@@ -354,13 +354,13 @@ table = pd.plotting.table(
 table.auto_set_font_size(False)
 
 ax.set_xlabel('Epoch')
-ax.set_ylabel('Validation Accuracy')
+ax.set_ylabel('Test Accuracy')
 f = ax.figure
-f.suptitle("Validation Accuracy vs Epoch")
+f.suptitle("Test Accuracy vs Epoch")
 #  f.tight_layout(rect=[0, 0.03, 1, 0.95])
 f.savefig(join(analysis_dir, "baselines_acc_vs_epoch.png"))
 
-#  import IPython ; IPython.embed() ; import sys ; sys.exit()
+import IPython ; IPython.embed() ; import sys ; sys.exit()
 
 # TODO:
 # the model that achieves same or better accuracy than baseline, but uses min

@@ -127,27 +127,27 @@ def _parse_log_sanitize_and_clean(df):
 
     # sanity check
     # hack to ignore redundant log data when model stops and is resumed
-    tmp = df.query('perf').groupby(['al_iter'])['epoch'].count()
-    bad_i = tmp.index[tmp > tmp.mode()[0]]
-    if not bad_i.empty:
-        print("--> Problem at al_iter(s):  %s.  "
-              "Found redundancy in log data (from re-running model and "
-              "restarting an AL iter). Ignoring earlier part of the "
-              "redundant data, since it wasn't used to continue training."
-              % bad_i.values)
-        for i in bad_i.values:
-            start_idx = df.query('al_iter == @i').index[0]
-            _tmp = df.query('al_iter == @i')
-            stop_idx = _tmp['epoch'].diff().idxmin() - 1
-            df.drop(df.loc[start_idx:stop_idx].index, inplace=True)
+    #  tmp = df.query('perf').groupby(['al_iter'])['epoch'].count()
+    #  bad_i = tmp.index[tmp > tmp.mode()[0]]
+    #  if not bad_i.empty:
+    #      print("--> Problem at al_iter(s):  %s.  "
+    #            "Found redundancy in log data (from re-running model and "
+    #            "restarting an AL iter). Ignoring earlier part of the "
+    #            "redundant data, since it wasn't used to continue training."
+    #            % bad_i.values)
+    #      for i in bad_i.values:
+    #          start_idx = df.query('al_iter == @i').index[0]
+    #          _tmp = df.query('al_iter == @i')
+    #          stop_idx = _tmp['epoch'].diff().idxmin() - 1
+    #          df.drop(df.loc[start_idx:stop_idx].index, inplace=True)
 
-    # hack: ignore end of log data if it's incomplete
-    if df['al_iter'].unique().shape[0] > 1:
-        if (df.groupby('al_iter')['epoch']
-                .count().diff().tail(1) < 1).all():
-            print("--> Dropping last al_iter, since it was incomplete")
-            _last_iter = df['al_iter'].max()
-            df.drop(df[df['al_iter'] == _last_iter].index, inplace=True)
+    #  # hack: ignore end of log data if it's incomplete
+    #  if df['al_iter'].unique().shape[0] > 1:
+    #      if (df.groupby('al_iter')['epoch']
+    #              .count().diff().tail(1) < 1).all():
+    #          print("--> Dropping last al_iter, since it was incomplete")
+    #          _last_iter = df['al_iter'].max()
+    #          df.drop(df[df['al_iter'] == _last_iter].index, inplace=True)
 
     # sanity check
     tmp = df.query('perf').groupby(['al_iter'])['epoch'].count()

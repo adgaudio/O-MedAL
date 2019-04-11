@@ -2,38 +2,6 @@
 # shell scripts should source this library.
 
 
-function run_parselog_py() {
-  overwrite_plots=$1
-  fp_in=$2
-  out_dir="data/_analysis/${fp_in#data/log/}"
-  if [ "${overwrite_plots:-false}" = false -a -e "$out_dir" ] ; then
-    echo skipping $fp_in
-    exit
-  fi
-  out="$(mktemp -p ./data/tmp/)"
-  exec 3>"$out"
-  exec 4<$out
-  rm "$out"
-  RED='\033[0;31m'
-  GREEN='\033[0;32m'
-  YELLOW='\033[0;33m'
-  CYAN='\033[0;34m'
-  NC='\033[0m' # No Color
-  cmd="python ./bin/parselog.py ""$out_dir"" ""$fp_in"
-  echo -e "$CYAN $cmd $NC"
-  $cmd >&3 2>&3
-  if [ $? -ne 0 ] ; then
-    echo -e "$RED failed_to_parse $NC $fp_in"
-    echo -e "$YELLOW "
-    cat <&4
-  else
-    echo -e "$GREEN successfully_parsed $NC $fp_in"
-    grep Traceback $fp_in >/dev/null && echo -e "$YELLOW    WARN: but log contains a Traceback $NC"
-    echo "    output_dir $out_dir"
-  fi
-}
-
-
 # Helper function to ensure only one instance of a job runs at a time.
 # Optionally, on finish, can write a file to ensure the job won't run again.
 # usage: use_lockfile myfile.locked [ myfile.finished ]
