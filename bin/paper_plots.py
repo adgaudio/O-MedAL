@@ -41,7 +41,7 @@ fps_varying_online_frac = [
 
 
 def get_train_frac(fp):
-    return re.sub(r'.*RMO6-([\d\.]+).?-.*', r'\1', fp)
+    return str(float(re.sub(r'.*RMO6-([\d\.]+).?-.*', r'\1', fp)) * .01)
 
 
 # load the data
@@ -80,7 +80,7 @@ dfm20['num_img_patches_processed'] = \
 dfo['num_img_patches_processed'] = \
     (points_to_label_per_al_iter
      + np.floor(
-         dfo['online_sample_frac']/100
+         dfo['online_sample_frac']
          * (1 + (dfo['al_iter']-1) * points_to_label_per_al_iter)))\
     .unstack('Experiment').cumsum().stack('Experiment')\
     .swaplevel().sort_index()
@@ -124,8 +124,8 @@ def main_perf_plot(subset_experiments=(), add_medal_to_legend=False):
                                % len(subset_experiments)))
 main_perf_plot()
 main_perf_plot([
-    'Online - 0', 'Online - 37.5', 'Online - 87.5', 'Online - 100'])
-main_perf_plot(['Online - 87.5'], add_medal_to_legend=True)
+    'Online - 0.0', 'Online - 0.375', 'Online - 0.875', 'Online - 1.0'])
+main_perf_plot(['Online - 0.875'], add_medal_to_legend=True)
 
 
 # get one row per experiment per al iter.
@@ -145,9 +145,9 @@ _tmp = dfo[['val_acc', 'pct_dataset_labeled', 'num_img_patches_processed']]
 keypoints = [
     # online experiments
     (_tmp.loc[dfo['val_acc'].idxmax()], 'dimgray'),
-    (_tmp.loc[dfo.query('online_sample_frac == 37.5')['val_acc'].idxmax()],
+    (_tmp.loc[dfo.query('online_sample_frac == 0.375')['val_acc'].idxmax()],
      'red'),
-    (_tmp.loc[dfo.query('online_sample_frac == 87.5')
+    (_tmp.loc[dfo.query('online_sample_frac == 0.875')
              .sort_values('val_acc', ascending=False)
              .head(5)['pct_dataset_labeled'].idxmin()],
      'dimgray'),
@@ -239,7 +239,7 @@ plot_training_time(logy=True, fracs=[], use_keypoints=False)
 plot_training_time(logy=True, fracs=[], use_keypoints=False)
 plot_training_time(logy=True, fracs=[], use_keypoints=True)
 plot_training_time(logy=True, fracs='all', use_keypoints=False)
-plot_training_time(logy=True, fracs=['87.5', '37.5'], use_keypoints=False)
+plot_training_time(logy=True, fracs=['0.875', '0.375'], use_keypoints=False)
 
 # latex table of val accs above and below baseline.
 with open(join(analysis_dir, 'table.tex'), 'w') as fout:
