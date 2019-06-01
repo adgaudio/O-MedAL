@@ -121,7 +121,7 @@ keypoints = [
 
 # plot 1: val acc vs percent dataset labeled
 # --> prepare results for plot
-def main_perf_plot(subset_experiments=(), add_medal_to_legend=False):
+def main_perf_plot(subset_experiments=(), add_medal_to_legend=False, add_baseline_to_legend=False):
     medalpltdata = dfm20\
         .set_index(['pct_dataset_labeled_int', 'epoch'])['val_acc']\
         .rename('MedAL (patience=20)')
@@ -149,23 +149,33 @@ def main_perf_plot(subset_experiments=(), add_medal_to_legend=False):
         [medalpltdata.plot(ax=ax, alpha=.6, color='green', linewidth=0.4,
                            label='_nolegend_')
          for ax in axs]
-    [ax.legend(loc='lower left', frameon=True) for ax in axs]
-    [ax.hlines(baseline_max_acc, 0, medalpltdata.shape[0],
-            color='dodgerblue', linestyle='--') for ax in axs]
+    if add_baseline_to_legend:
+        [ax.hlines(baseline_max_acc, 0, medalpltdata.shape[0],
+                color='dodgerblue', linestyle='--', label='Baseline ResNet18')
+         for ax in axs]
+    else:
+        [ax.hlines(baseline_max_acc, 0, medalpltdata.shape[0],
+                color='dodgerblue', linestyle='--', label='_nolegend_')
+         for ax in axs]
+    [ax.legend(loc='lower left', frameon=True, ncol=3)
+     for ax in axs]
     # --> handle xticks.
-    ax.set_xlabel('Percent Dataset Labeled')
-    axs[-1].set_xlabel('Percent Dataset Labeled')
-    axs[len(axs)//2].set_ylabel('Test Accuracy')
+    [ax.set_xlabel('Percent Dataset Labeled') for ax in axs]
+    #  axs[-1].set_xlabel('Percent Dataset Labeled')
+    [ax.set_ylabel('Test Accuracy') for ax in axs]
+    #  axs[len(axs)//2].set_ylabel('Test Accuracy')
     axs[0].xaxis.set_major_locator(mticker.LinearLocator(10))
     axs[0].xaxis.set_major_formatter(
         mticker.FuncFormatter(lambda x, pos: min(100, medalpltdata.index[int(x)][0])))
     fig.tight_layout()
-    fig.savefig(join(analysis_dir, 'varying_online_frac%s.png'
+    fig.savefig(join(analysis_dir, 'varying_online_frac%s.eps'
                                % len(subset_experiments)))
 main_perf_plot()
 main_perf_plot([
-    'Online - 0.0', 'Online - 0.375', 'Online - 0.875', 'Online - 1.0'])
+    'Online - 0.0', 'Online - 0.125', 'Online - 0.875', 'Online - 1.0'],
+    add_medal_to_legend=True, add_baseline_to_legend=True)
 main_perf_plot(['Online - 0.875'], add_medal_to_legend=True)
+main_perf_plot(['Online - 0.875', 'Online - 0.125'], add_medal_to_legend=True)
 
 # plot 2: training time (number of image patches used)
 # --> plot amount of data used as we change the sample frac
@@ -239,7 +249,7 @@ def plot_training_time(logy=True, fracs=None, use_keypoints=True):
 
     f.savefig(join(
         analysis_dir,
-        'num_img_patches_processed%s%s%s.png'
+        'num_img_patches_processed%s%s%s.eps'
         % (("_logy" if logy else ""), len(points),
            '_kp' if use_keypoints else '')))
 
@@ -361,7 +371,7 @@ with open(join(analysis_dir, 'topn_keypoint_table.tex'), 'w') as fout:
                               #  linewidth=15, alpha=.8, edgecolor=color, lw=4))
  #  for xy, color in keypoints]
 
-f.savefig(join(analysis_dir, 'topn_best_val_accs_per_experiment.png'))
+f.savefig(join(analysis_dir, 'topn_best_val_accs_per_experiment.eps'))
 
 # useless bar plot
 #  _bpm1 = dfo[['val_acc']]\
@@ -388,7 +398,7 @@ f.savefig(join(analysis_dir, 'topn_best_val_accs_per_experiment.png'))
 #  f.tight_layout()
 #  f.subplots_adjust(top=0.92, hspace=.55)
 #  f.suptitle("Best Test Accuracy")
-#  f.savefig(join(analysis_dir, 'best_model_val_acc.png'))
+#  f.savefig(join(analysis_dir, 'best_model_val_acc.eps'))
 
 
 dfbb = {
@@ -411,6 +421,6 @@ ax.set_ylabel('Test Accuracy')
 f = ax.figure
 f.suptitle("Test Accuracy vs Epoch")
 #  f.tight_layout(rect=[0, 0.03, 1, 0.95])
-f.savefig(join(analysis_dir, "baselines_acc_vs_epoch.png"))
+f.savefig(join(analysis_dir, "baselines_acc_vs_epoch.eps"))
 
 import IPython ; IPython.embed() ; import sys ; sys.exit()
