@@ -300,8 +300,8 @@ sns.scatterplot(
         'val_acc': 'Test Accuracy', }, axis=1), ax=ax,
     #  palette=sns.palplot(sns.color_palette("cubehelix", 9))
     #  palette=sns.palplot(sns.color_palette("coolwarm", 9))
-    size=2,
-    palette=sns.palplot(sns.color_palette("hsv", 9))
+    palette=sns.palplot(sns.color_palette("hsv", 9)),
+    #  legend='brief'
     #  palette='GnBu_d')
 )
 ax.hlines(baseline_max_acc, 0, 100, linestyle='--',
