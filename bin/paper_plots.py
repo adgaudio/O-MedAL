@@ -168,7 +168,7 @@ def main_perf_plot(subset_experiments=(), add_medal_to_legend=False, add_baselin
     axs[0].xaxis.set_major_formatter(
         mticker.FuncFormatter(lambda x, pos: min(100, medalpltdata.index[int(x)][0])))
     fig.tight_layout()
-    fig.savefig(join(analysis_dir, 'varying_online_frac%s.eps'
+    fig.savefig(join(analysis_dir, 'varying_online_frac%s.png'
                                % len(subset_experiments)))
 main_perf_plot()
 main_perf_plot([
@@ -249,7 +249,7 @@ def plot_training_time(logy=True, fracs=None, use_keypoints=True):
 
     f.savefig(join(
         analysis_dir,
-        'num_img_patches_processed%s%s%s.eps'
+        'num_img_patches_processed%s%s%s.png'
         % (("_logy" if logy else ""), len(points),
            '_kp' if use_keypoints else '')))
 
@@ -371,7 +371,7 @@ with open(join(analysis_dir, 'topn_keypoint_table.tex'), 'w') as fout:
                               #  linewidth=15, alpha=.8, edgecolor=color, lw=4))
  #  for xy, color in keypoints]
 
-f.savefig(join(analysis_dir, 'topn_best_val_accs_per_experiment.eps'))
+f.savefig(join(analysis_dir, 'topn_best_val_accs_per_experiment.png'))
 
 # useless bar plot
 #  _bpm1 = dfo[['val_acc']]\
@@ -398,7 +398,7 @@ f.savefig(join(analysis_dir, 'topn_best_val_accs_per_experiment.eps'))
 #  f.tight_layout()
 #  f.subplots_adjust(top=0.92, hspace=.55)
 #  f.suptitle("Best Test Accuracy")
-#  f.savefig(join(analysis_dir, 'best_model_val_acc.eps'))
+#  f.savefig(join(analysis_dir, 'best_model_val_acc.png'))
 
 
 dfbb = {
@@ -421,6 +421,6 @@ ax.set_ylabel('Test Accuracy')
 f = ax.figure
 f.suptitle("Test Accuracy vs Epoch")
 #  f.tight_layout(rect=[0, 0.03, 1, 0.95])
-f.savefig(join(analysis_dir, "baselines_acc_vs_epoch.eps"))
+f.savefig(join(analysis_dir, "baselines_acc_vs_epoch.png"))
 
 import IPython ; IPython.embed() ; import sys ; sys.exit()
