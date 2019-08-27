@@ -1,28 +1,30 @@
-#O-MedAL: Online Active Deep Learning for Medical Image Analysis
+# O-MedAL: Online Active Deep Learning for Medical Image Analysis
 
 Code for the paper, written with pytorch.
+
+![poster](./omedal_cmu_portugal_poster.pdf)
 
 
 ## Setup
 
-- Git clone the repo, and navigate your shell to the root of the repo.
+Git clone the repo, and navigate your shell to the root of the repo.
 
-- Download the Messidor dataset to ./data/messidor/
+Download the Messidor dataset to ./data/messidor/
 
     $ ls data/messidor
     Annotation_Base11.csv  Annotation_Base14.csv  Annotation_Base23.csv  Annotation_Base32.csv  Base11  Base14  Base23  Base32
     Annotation_Base12.csv  Annotation_Base21.csv  Annotation_Base24.csv  Annotation_Base33.csv  Base12  Base21  Base24  Base33
     Annotation_Base13.csv  Annotation_Base22.csv  Annotation_Base31.csv  Annotation_Base34.csv  Base13  Base22  Base31  Base34
 
-- Link your ~/.torch to ./data/torch (avoid downloading pre-trained if you don't need to)
+Link your ~/.torch to ./data/torch (avoid downloading pre-trained if you don't need to)
 
     $ ln -sr ~/.torch ./data/torch
 
-- Install missing python requirements (if necessary)
+Install missing python requirements (if necessary)
 
     $ cat ./requirements.txt
 
-- You should have a gpu on the machine too!  Check with:
+You should have a gpu on the machine too!  Check with:
 
     $ nvidia-smi
 
