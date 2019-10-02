@@ -290,7 +290,7 @@ with open(join(analysis_dir, 'table.tex'), 'w') as fout:
 
 
 # plot 3: best performing model
-topn = 1
+topn = 100000
 g = dfo.groupby('Experiment')\
     .apply(lambda x: x.sort_values(['val_acc', 'pct_dataset_labeled'],
                                    ascending=False).head(topn))\
@@ -314,14 +314,14 @@ g['pct_dataset_labeled'] += \
 #          'val_acc': 'Test Accuracy', }, axis=1), ax=ax,
 #      palette=sns.color_palette(['#1dae6b']))
 # --> remove some experiments from the scatter plot for clarity.
-#  g = g[g['Experiment'].isin([
-    #  'Online - 0.125', 'Online - 0.875',])]
+g = g[g['Experiment'].isin([
+    'Online - 0.125', 'Online - 0.875',])]
 sns.scatterplot(
     'Percent Dataset Labeled', 'Test Accuracy', hue='Experiment',
     data=g.rename({
         'pct_dataset_labeled': 'Percent Dataset Labeled',
         'val_acc': 'Test Accuracy', }, axis=1), ax=ax,
-    #  palette=sns.color_palette(['darkorange', 'dimgray']),
+    palette=sns.color_palette(['#fdae6b', 'silver']),
     #  palette=sns.palplot(sns.color_palette("coolwarm", 9))
     #  palette=sns.palplot(sns.color_palette("hsv", 3)),
     #  palette='GnBu_d')
