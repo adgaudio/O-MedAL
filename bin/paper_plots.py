@@ -179,8 +179,10 @@ main_perf_plot(['Online - 0.875', 'Online - 0.125'], add_medal_to_legend=True)
 
 # plot 2: training time (number of image patches used)
 # --> plot amount of data used as we change the sample frac
-def plot_training_time(logy=True, fracs=None, use_keypoints=True):
+def plot_training_time(logy=True, fracs=None, use_keypoints=True, dropcols=()):
     f, ax = plt.subplots(1, 1, figsize=(6, 4))
+
+    # plot exponential curves for experiments and MedAL
     tmp = Z.set_index(['pct_dataset_labeled', 'online_sample_frac'])\
         ['num_img_patches_processed']\
         .unstack('online_sample_frac')\
@@ -188,11 +190,19 @@ def plot_training_time(logy=True, fracs=None, use_keypoints=True):
               .max().rename('MedAL (patience=20)'), how='outer')\
         .join(dfm10.groupby('pct_dataset_labeled')['num_img_patches_processed']
               .max().rename('MedAL (patience=10)'), how='outer')
-    # plot exponential curves for experiments and MedAL
-    tmp\
-        .drop('MedAL (patience=20)', axis=1)\
-        .drop('MedAL (patience=10)', axis=1)\
-        .plot(ax=ax, logy=logy, legend=False)
+    if dropcols:
+        tmp = tmp.drop(dropcols, axis=1)
+        color_dict = {0.125: '#fdae6b', 0.875: 'silver'}
+        tmp\
+            .drop('MedAL (patience=20)', axis=1)\
+            .drop('MedAL (patience=10)', axis=1)\
+            .plot(ax=ax, logy=logy, legend=False,
+                  color=[color_dict.get(x, '#333333') for x in tmp.columns])
+    else:  # ugly hack for colors to match up
+        tmp\
+            .drop('MedAL (patience=20)', axis=1)\
+            .drop('MedAL (patience=10)', axis=1)\
+            .plot(ax=ax, logy=logy, legend=False)
     tmp['MedAL (patience=20)'].plot(ax=ax, style='-.', logy=logy, color='black', legend=False)
     tmp['MedAL (patience=10)'].plot(ax=ax, style=':', logy=logy, color='darkblue', legend=False)
 
@@ -242,23 +252,27 @@ def plot_training_time(logy=True, fracs=None, use_keypoints=True):
     ax.set_ylabel('Number of Examples Processed%s'
                   % (' (log scale)' if logy else ''))
     ax.set_xlabel('Percent Dataset Labeled')
-    ax.legend(ncol=3)
+    if dropcols:
+        ax.legend(ncol=2)
+    else:
+        ax.legend(ncol=3)
 
     cols = ['pct_dataset_labeled', 'num_img_patches_processed']
     rows = 'online_sample_frac'
 
     f.savefig(join(
         analysis_dir,
-        'num_img_patches_processed%s%s%s.png'
+        'num_img_patches_processed%s%s%s%s.png'
         % (("_logy" if logy else ""), len(points),
-           '_kp' if use_keypoints else '')))
+           '_kp' if use_keypoints else '', 'dc%s' % len(dropcols))))
 
 plot_training_time(logy=False, fracs=None, use_keypoints=False)
 plot_training_time(logy=True, fracs=[], use_keypoints=False)
 plot_training_time(logy=True, fracs=[], use_keypoints=False)
 plot_training_time(logy=True, fracs=[], use_keypoints=True)
 plot_training_time(logy=True, fracs='all', use_keypoints=False)
-plot_training_time(logy=True, fracs=['0.875', '0.125'], use_keypoints=False)
+# this is the one used in paper:
+plot_training_time(logy=True, fracs=[], use_keypoints=True, dropcols=[0, .25, .5, .625, .75, 1])
 
 # latex table of val accs above and below baseline.
 with open(join(analysis_dir, 'table.tex'), 'w') as fout:
@@ -276,7 +290,7 @@ with open(join(analysis_dir, 'table.tex'), 'w') as fout:
 
 
 # plot 3: best performing model
-topn = 10
+topn = 1
 g = dfo.groupby('Experiment')\
     .apply(lambda x: x.sort_values(['val_acc', 'pct_dataset_labeled'],
                                    ascending=False).head(topn))\
@@ -293,15 +307,23 @@ g['val_acc'] += x_jitter * (np.random.randint(-1, 1, g.shape[0])*2+1)
 g['pct_dataset_labeled'] += \
     y_jitter * (np.random.randint(-1, 1, g.shape[0])*2+1)
 # --> make scatter plot
+#  sns.scatterplot(
+#      'Percent Dataset Labeled', 'Test Accuracy', hue='Experiment',
+#      data=g[g['Experiment'].isin(['Online - 0.375'])].rename({
+#          'pct_dataset_labeled': 'Percent Dataset Labeled',
+#          'val_acc': 'Test Accuracy', }, axis=1), ax=ax,
+#      palette=sns.color_palette(['#1dae6b']))
+# --> remove some experiments from the scatter plot for clarity.
+#  g = g[g['Experiment'].isin([
+    #  'Online - 0.125', 'Online - 0.875',])]
 sns.scatterplot(
     'Percent Dataset Labeled', 'Test Accuracy', hue='Experiment',
     data=g.rename({
         'pct_dataset_labeled': 'Percent Dataset Labeled',
         'val_acc': 'Test Accuracy', }, axis=1), ax=ax,
-    #  palette=sns.palplot(sns.color_palette("cubehelix", 9))
+    #  palette=sns.color_palette(['darkorange', 'dimgray']),
     #  palette=sns.palplot(sns.color_palette("coolwarm", 9))
-    palette=sns.palplot(sns.color_palette("hsv", 9)),
-    #  legend='brief'
+    #  palette=sns.palplot(sns.color_palette("hsv", 3)),
     #  palette='GnBu_d')
 )
 ax.hlines(baseline_max_acc, 0, 100, linestyle='--',
@@ -310,8 +332,20 @@ ax.hlines(dfm20['val_acc'].max(), 0, 100, linestyle='-.', alpha=1,
           color='black', label='MedAL, patience=20\n    (best accuracy)')
 ax.hlines(dfm10['val_acc'].max(), 0, 100, linestyle=':', alpha=1,
           color='darkblue', label='MedAL, patience=10\n    (best accuracy)')
-ax.legend(framealpha=.8, frameon=True, bbox_to_anchor=(0, .34), loc='center left', ncol=2)
-ax.set_title("Top %s Highest Test Accuracies For Each Experiment" % topn)
+
+# --> hide the "Experiment" column since it's redundant and reorder legend
+#  h,l = ax.get_legend_handles_labels()
+#  assert 'Experiment' in l[2]
+#  l[1], l[2], l[3] = l[4], l[3], l[1]
+#  h[1], h[2], h[3] = h[4], h[3], h[1]
+#  del l[4]
+#  del h[4]
+#  legend = ax.legend(labels=l, handles=h, framealpha=.8, frameon=True, bbox_to_anchor=(0, .34), loc='center left', ncol=2)
+legend = ax.legend(framealpha=.8, frameon=True, bbox_to_anchor=(0, .3), loc='center left', ncol=2)
+if topn >= 100000:
+    ax.set_title("Test Accuracies For Each Experiment")
+else:
+    ax.set_title("Top %s Highest Test Accuracies For Each Experiment" % topn)
 # add annotations to key points of interest on plot
 with open(join(analysis_dir, 'topn_keypoint_table.tex'), 'w') as fout:
     print("\n\n  ---  keypoint table  ---")
