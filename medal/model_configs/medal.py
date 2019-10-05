@@ -33,8 +33,8 @@ def pick_data_points_to_label(config):
     M = 0  # num newly labeled items
     old_items_centroid = embedding_labeled.mean(0)  # fixed
     new_items_sum = torch.zeros_like(old_items_centroid, device=config.device)
-    remaining_unpicked_items = torch.ByteTensor(
-        embedding_unlabeled.shape[0]).to(config.device) * 0 + 1
+    remaining_unpicked_items = torch.ones(
+        embedding_unlabeled.shape[0], dtype=torch.bool).to(config.device)
     points_to_label = torch.empty(
         config.num_points_to_label_per_al_iter,
         dtype=torch.long, device=config.device)
@@ -77,9 +77,9 @@ def get_labeled_and_topk_unlabeled_embeddings(config):
     """
     # get model prediction on unlabeled points
     unlabeled_data_loader = feedforward.create_data_loader(
-        config, idxs=config._train_indices[~config._is_labeled], shuffle=False)
+        config, idxs=config._train_indices[~config._is_labeled].cpu().numpy(), shuffle=False)
     labeled_data_loader = feedforward.create_data_loader(
-        config, idxs=config._train_indices[config._is_labeled], shuffle=False)
+        config, idxs=config._train_indices[config._is_labeled].cpu().numpy(), shuffle=False)
 
     # get unlabeled data embeddings on the N highest predictive entropy samples
     embedding_unlabeled, unlabeled_idxs = get_feature_embedding(
@@ -237,7 +237,7 @@ class OnlineMedalMixin:
         self._set_points_labeled(points_to_label)
         self.train_loader = feedforward.create_data_loader(
             self, idxs=torch.cat([
-                previously_labeled_points, newly_labeled_points]))
+                previously_labeled_points, newly_labeled_points]).cpu().numpy())
 
 
 class MedalConfigABC(feedforward.FeedForwardModelConfig):
@@ -246,7 +246,6 @@ class MedalConfigABC(feedforward.FeedForwardModelConfig):
 
     num_max_entropy_samples = int
     num_points_to_label_per_al_iter = int
-    data_loader_num_workers = 0
     reset_model_weights_each_al_iter = True
 
     @abc.abstractmethod
@@ -294,7 +293,7 @@ class MedalConfigABC(feedforward.FeedForwardModelConfig):
         """
         self._set_points_labeled(points_to_label)
         self.train_loader = feedforward.create_data_loader(
-            self, idxs=self._train_indices[self._is_labeled])
+            self, idxs=self._train_indices[self._is_labeled].cpu().numpy())
 
     def __init__(self, config_override_dict):
         super().__init__(config_override_dict)
@@ -310,8 +309,8 @@ class MedalConfigABC(feedforward.FeedForwardModelConfig):
             self.train_loader.sampler.indices.copy(),
             dtype=torch.long, device=self.device)
         del self.train_loader  # will recreate this appropriately during train
-        self._is_labeled = torch.ByteTensor(
-            self._train_indices.shape).to(self.device) * 0
+        self._is_labeled = torch.zeros(
+            self._train_indices.shape, dtype=torch.bool).to(self.device)
 
         self._serialized_model_state_dict = \
             pickle.dumps(self.model.state_dict())
@@ -345,6 +344,7 @@ class MedalResnet18BinaryClassifier(MedalConfigABC,
 
     num_max_entropy_samples = 50
     num_points_to_label_per_al_iter = 20
+    checkpoint_interval = 0  # don't save checkpoints
 
     def get_feature_embedding_layer(self):
         return list(self.model.children())[0][5]
