@@ -27,17 +27,24 @@ fp_baseline = "data/_analysis/R6-20190315T030959.log/logdata.csv"
 #  fp_medal = "data/_analysis/RM6-20190319T005512.log/logdata.csv"
 fp_medal_patience10 = "data/_analysis/RM6e-20190324T140934.log/logdata.csv"
 fp_medal_patience20 = "data/_analysis/RM6g-20190406T222759.log/logdata.csv"
-fps_varying_online_frac = [
-    "data/_analysis/RMO6-0d-20190323T003224.log/logdata.csv",
+fps_varying_online_frac = [  # stored in dfo
+    #  "data/_analysis/RMO6-0d-20190323T003224.log/logdata.csv",
     "data/_analysis/RMO6-12.5d-20190322T142710.log/logdata.csv",
-    "data/_analysis/RMO6-25d-20190323T152428.log/logdata.csv",
-    "data/_analysis/RMO6-37.5d-20190322T051602.log/logdata.csv",
-    "data/_analysis/RMO6-50d-20190323T030509.log/logdata.csv",
-    "data/_analysis/RMO6-62.5d-20190322T092309.log/logdata.csv",
-    "data/_analysis/RMO6-75d-20190323T185418.log/logdata.csv",
+    #  "data/_analysis/RMO6-25d-20190323T152428.log/logdata.csv",
+    #  "data/_analysis/RMO6-37.5d-20190322T051602.log/logdata.csv",
+    #  "data/_analysis/RMO6-50d-20190323T030509.log/logdata.csv",
+    #  "data/_analysis/RMO6-62.5d-20190322T092309.log/logdata.csv",
+    #  "data/_analysis/RMO6-75d-20190323T185418.log/logdata.csv",
     "data/_analysis/RMO6-87.5d-20190322T173655.log/logdata.csv",
-    "data/_analysis/RMO6-100d-20190323T082726.log/logdata.csv",
+    #  "data/_analysis/RMO6-100d-20190323T082726.log/logdata.csv",
 ]
+fps_omedal_patience = {
+    "p=0.875, 20 epoch": "data/_analysis/RMO6-87.5-20epoch-20191005T215029.log/logdata.csv",
+    "p=0.875, patience=05": "data/_analysis/RMO6-87.5-5patience-20191005T215029.log/logdata.csv",
+    "p=0.875, patience=10": "data/_analysis/RMO6-87.5-10patience-20191006T004721.log/logdata.csv",
+    "p=0.875, patience=20": "data/_analysis/RMO6-87.5-20patience-20191006T133459.log/logdata.csv",
+}
+
 
 
 def get_train_frac(fp):
@@ -48,19 +55,22 @@ def get_train_frac(fp):
 dfb = pd.read_csv(fp_baseline).query('perf').sort_values('epoch').set_index('epoch')
 dfm20 = pd.read_csv(fp_medal_patience20).query('perf').sort_values(['al_iter', 'epoch'])
 dfm10 = pd.read_csv(fp_medal_patience10).query('perf').sort_values(['al_iter', 'epoch'])
-dfs = {'Online - ' + get_train_frac(fp): pd.read_csv(fp).query('perf')
+dfs = {'p=%s, 10 epoch' % get_train_frac(fp): pd.read_csv(fp).query('perf')
        for fp in fps_varying_online_frac}
-dfo = pd.concat(dfs, names=['Experiment', 'log_line_num'])
+dfs.update({k: pd.read_csv(fp).query('perf') for k, fp in fps_omedal_patience.items()})
+dfo = pd.concat(dfs, names=['Experiment', 'log_line_num'], sort=True)
+
 dfo['online_sample_frac'] = dfo.index.get_level_values('Experiment')\
-    .str.extract('Online - (.*)').astype('float').values
-dfo = dfo.sort_values(['online_sample_frac', 'al_iter', 'epoch'])
+    .str.extract('p=(.*), ').astype('float').values
+dfo = dfo.sort_values(['Experiment', 'al_iter', 'epoch'])
+assert dfo['online_sample_frac'].isna().sum() == 0, "bug: a dfo experiment must start with p=..."
 # --> reindex dfm20 and dfo to guarantee if the run was incomplete we show empty
 # space in plot that would represent usage of the full dataset.
 _mi = pd.MultiIndex.from_product([
         np.arange(1, 49), np.arange(1, 151)], names=['al_iter', 'epoch'])
 #  dfm20 = dfm20.set_index(['al_iter', 'epoch']).reindex(_mi).reset_index()
-assert dfm20.dropna(axis=1, how='all').dropna().groupby('al_iter').count()['epoch'].min() >= dfo['epoch'].max()
-assert dfm10.dropna(axis=1, how='all').dropna().groupby('al_iter').count()['epoch'].min() >= dfo['epoch'].max()
+assert dfm20.dropna(axis=1, how='all').dropna().groupby('al_iter').count()['epoch'].min() >= 20
+assert dfm10.dropna(axis=1, how='all').dropna().groupby('al_iter').count()['epoch'].min() >= 10
 
 # compute percent data labeled (for x axis of plot)
 for df in [dfo, dfm10, dfm20]:
@@ -77,17 +87,36 @@ dfm10['num_img_patches_processed'] = \
     (dfm10['al_iter'] * points_to_label_per_al_iter + 1).cumsum()
 dfm20['num_img_patches_processed'] = \
     (dfm20['al_iter'] * points_to_label_per_al_iter + 1).cumsum()
+
+def omedal_count_img_patches_processed(x):
+    assert x['online_sample_frac'].unique().shape == (1,)
+    p = x['online_sample_frac'].unique()[0]
+
+    cur_training_size = (x['al_iter'] * points_to_label_per_al_iter + 1)
+    prev_training_size = cur_training_size - points_to_label_per_al_iter
+
+    num_processed = 20 + p * prev_training_size
+    return num_processed.cumsum()
+
 dfo['num_img_patches_processed'] = \
-    (points_to_label_per_al_iter
-     + np.floor(
-         dfo['online_sample_frac']
-         * (1 + (dfo['al_iter']-1) * points_to_label_per_al_iter)))\
-    .unstack('Experiment').cumsum().stack('Experiment')\
-    .swaplevel().sort_index()
+    dfo.groupby(['Experiment'])\
+    .apply(omedal_count_img_patches_processed).droplevel(0)
+dfo['uses_patience'] = dfo.reset_index()['Experiment'].str.contains('patience').values
+
+# --> this way would work if fixed epochs per al iter.  since dfo contains
+# non-fixed examples, can't use it though.  acs as be a useful sanity check for
+# the fixed "p=..., 10 epoch" models :)
+#  dfo['num_img_patches_processed'] = \
+#      (points_to_label_per_al_iter
+#       + np.floor(
+#           dfo['online_sample_frac']
+#           * (1 + (dfo['al_iter']-1) * points_to_label_per_al_iter)))\
+#      .unstack('Experiment').cumsum().stack('Experiment')\
+#      .swaplevel().sort_index()
 
 # get one row per experiment per al iter.
 Z = dfo\
-    .groupby(['online_sample_frac', 'al_iter'])\
+    .groupby(['Experiment', 'al_iter'])\
     .agg({'pct_dataset_labeled': 'first',
           'num_img_patches_processed': 'max',
           'val_acc': 'max'})\
@@ -120,25 +149,19 @@ keypoints = [
 
 # plot 1: val acc vs percent dataset labeled
 # --> prepare results for plot
-def main_perf_plot(subset_experiments=(), add_medal_to_legend=False, add_baseline_to_legend=False):
+def main_perf_plot():
+    add_medal_to_legend=True
+    add_baseline_to_legend=True
     medalpltdata = dfm20\
         .set_index(['pct_dataset_labeled_int', 'epoch'])['val_acc']\
         .rename('MedAL (patience=20)')
-    onlinepltdata = dfo\
-        .query('perf')\
-        .set_index(['pct_dataset_labeled_int', 'epoch'], append=True)\
-        .drop('al_iter', axis=1)\
-        .droplevel('log_line_num')['val_acc']\
-        .unstack('Experiment')\
-        .reindex(columns=sorted(dfo.index.levels[0], key=lambda x: float(x.replace('Online - ', ''))))\
+    onlinepltdata = dfo.query('Experiment == "p=0.875, patience=20"')\
+        .set_index(['pct_dataset_labeled_int', 'epoch'])['val_acc']\
+        .rename('Online MedAL (p=0.875, patience=20)')\
         .reindex(medalpltdata.index)
-    if subset_experiments:
-        onlinepltdata = onlinepltdata[subset_experiments]
+
     # --> add the plots
-    if len(subset_experiments) == 1:
-        fig, ax = plt.subplots(1, 1, figsize=(8, 2))
-    else:
-        fig, ax = plt.subplots(1, 1, figsize=(8, 11))
+    fig, ax = plt.subplots(1, 1, figsize=(8, 2))
     axs = onlinepltdata\
         .plot(ylim=(0, 1), color='red', subplots=True, ax=ax)
     if add_medal_to_legend:
@@ -150,13 +173,13 @@ def main_perf_plot(subset_experiments=(), add_medal_to_legend=False, add_baselin
          for ax in axs]
     if add_baseline_to_legend:
         [ax.hlines(baseline_max_acc, 0, medalpltdata.shape[0],
-                color='dodgerblue', linestyle='--', label='Baseline ResNet18')
+                color='dodgerblue', linestyle='--', label='ResNet18 (max accuracy)')
          for ax in axs]
     else:
         [ax.hlines(baseline_max_acc, 0, medalpltdata.shape[0],
                 color='dodgerblue', linestyle='--', label='_nolegend_')
          for ax in axs]
-    [ax.legend(loc='lower left', frameon=True, ncol=3)
+    [ax.legend(loc='lower left', frameon=True, ncol=2)
      for ax in axs]
     # --> handle xticks.
     [ax.set_xlabel('Percent Dataset Labeled') for ax in axs]
@@ -167,38 +190,33 @@ def main_perf_plot(subset_experiments=(), add_medal_to_legend=False, add_baselin
     axs[0].xaxis.set_major_formatter(
         mticker.FuncFormatter(lambda x, pos: min(100, medalpltdata.index[int(x)][0])))
     fig.tight_layout()
-    fig.savefig(join(analysis_dir, 'varying_online_frac%s.png'
-                               % len(subset_experiments)))
-#  main_perf_plot()
-#  main_perf_plot([
-#      'Online - 0.0', 'Online - 0.125', 'Online - 0.875', 'Online - 1.0'],
-#      add_medal_to_legend=True, add_baseline_to_legend=True)
-main_perf_plot(['Online - 0.875'], add_medal_to_legend=True)
-#  main_perf_plot(['Online - 0.875', 'Online - 0.125'], add_medal_to_legend=True)
+    fig.savefig(join(analysis_dir, 'varying_online_frac.png'))
+main_perf_plot()
 
 # plot 2: training time (number of image patches used)
 # --> plot amount of data used as we change the sample frac
 def plot_training_time(logy=True, fracs=None, use_keypoints=True, included_experiments=()):
-    f, ax = plt.subplots(1, 1, figsize=(6, 4))
+    f, ax = plt.subplots(1, 1)
 
     # plot exponential curves for experiments and MedAL
-    tmp = Z.set_index(['pct_dataset_labeled', 'online_sample_frac'])\
+    tmp = Z.set_index(['Experiment', 'pct_dataset_labeled'])\
         ['num_img_patches_processed']\
-        .unstack('online_sample_frac')
+        .unstack('Experiment')
     if included_experiments:
         tmp = tmp[included_experiments]
     # --> hack the legend
-    _tmp_colnames = ['p=%s' % x for x in tmp.columns]
+    _tmp_colnames = list(tmp.columns)
     _tmp_colnames[0] = 'Online Medal\n%s' % _tmp_colnames[0]
     tmp.columns = _tmp_colnames
-    tmp.plot(ax=ax, logy=logy, legend=False, color=sns.color_palette('autumn_r'))
+    tmp[[x for x in tmp.columns if 'patience' not in x]].plot(ax=ax, logy=logy, legend=False, color=sns.color_palette('autumn_r'))
+    tmp[[x for x in tmp.columns if 'patience' in x]].plot(ax=ax, logy=logy, legend=False, color=sns.color_palette('summer_r'))
     tmp = tmp\
         .join(dfm20.groupby('pct_dataset_labeled')['num_img_patches_processed']
-              .max().rename('MedAL\npatience=20'), how='outer')\
+              .max().rename('MedAL\npatience=20 (150 epoch)'), how='outer')\
         .join(dfm10.groupby('pct_dataset_labeled')['num_img_patches_processed']
-              .max().rename('patience=10'), how='outer')
-    tmp['MedAL\npatience=20'].plot(ax=ax, style='-.', logy=logy, color='lightblue', legend=False)
-    tmp['patience=10'].plot(ax=ax, style=':', logy=logy, color='blue', legend=False)
+              .max().rename('patience=10 (150 epoch)'), how='outer')
+    tmp['MedAL\npatience=20 (150 epoch)'].plot(ax=ax, style=':', logy=logy, color='darkblue', legend=False)
+    tmp['patience=10 (150 epoch)'].plot(ax=ax, style=':', logy=logy, color='cornflowerblue', legend=False)
 
     # plot baseline horizontal line
     ax.hlines(baseline_num_processed, 0, 100,
@@ -246,10 +264,7 @@ def plot_training_time(logy=True, fracs=None, use_keypoints=True, included_exper
     ax.set_ylabel('Number of Examples Processed%s'
                   % (' (log scale)' if logy else ''))
     ax.set_xlabel('Percent Dataset Labeled')
-    if included_experiments:
-        ax.legend(ncol=2)
-    else:
-        ax.legend(ncol=3)
+    ax.legend(ncol=2)
 
     cols = ['pct_dataset_labeled', 'num_img_patches_processed']
     rows = 'online_sample_frac'
@@ -266,16 +281,16 @@ def plot_training_time(logy=True, fracs=None, use_keypoints=True, included_exper
 #  plot_training_time(logy=True, fracs=[], use_keypoints=True)
 #  plot_training_time(logy=True, fracs='all', use_keypoints=False)
 #  # this is the one used in paper:
-plot_training_time(logy=True, fracs=[], use_keypoints=True,
-                   included_experiments=[0.125, 0.375, 0.875, 1])
+plot_training_time(logy=True, fracs=[], use_keypoints=True,)
+                   #  included_experiments=[0.125, 0.375, 0.875, 1])
 
 # latex table of val accs above and below baseline.
 with open(join(analysis_dir, 'table.tex'), 'w') as fout:
     points = Z.loc[Z.groupby([
-        'online_sample_frac', 'process_more_pts_than_baseline'
+        'Experiment', 'process_more_pts_than_baseline'
     ])['val_acc'].idxmax()]
     table_data = points.query('not val_acc_worse_than_baseline')\
-        .set_index('online_sample_frac')\
+        .set_index('Experiment')\
         .sort_values(['num_img_patches_processed', 'val_acc'])[
             ['val_acc', 'pct_dataset_labeled', 'num_img_patches_processed',
              'process_more_pts_than_baseline',
@@ -288,53 +303,56 @@ with open(join(analysis_dir, 'table.tex'), 'w') as fout:
 def plot_accuracy():
     cols = ['val_acc', 'pct_dataset_labeled', 'al_iter', 'epoch']
 
-    _medal10 = dfm10[cols].copy()
-    _medal20 = dfm20[cols].copy()
-    _medal10['MedAL'] = 'patience=10'
-    _medal20['MedAL'] = 'patience=20'
-    included_experiments = [0.125, 0.375, 0.875, 1]
-    g2 = dfo.query('online_sample_frac in @included_experiments')[cols]\
-        .droplevel('log_line_num').reset_index()\
-        .rename(columns={'Experiment': 'Online MedAL'})
-    # --> show last epoch of each al iteration.
-    g2 = g2.loc[g2.groupby(['Online MedAL', 'al_iter', 'pct_dataset_labeled'])\
-        ['val_acc'].idxmax()]
-    g2['Online MedAL'] = g2['Online MedAL'].str.replace('Online - ', 'p=')
-    #  g2 = g2.groupby(['Online MedAL', 'al_iter', 'pct_dataset_labeled'])\
-        #  ['val_acc'].quantile(0.99).reset_index()
+    g2 = dfo\
+        .droplevel('log_line_num')\
+        .rename_axis(index={'Experiment': 'Online MedAL'})\
+        .rename({'pct_dataset_labeled': 'Percent Dataset Labeled',
+                 'val_acc': 'Max Test Accuracy', }, axis=1)\
+        .groupby(['Online MedAL', 'al_iter'])['Max Test Accuracy'].max()\
+        .unstack('Online MedAL')
 
-    g3 = pd.concat([_medal10, _medal20], ignore_index=True)
-    g3 = g3.loc[g3.groupby(['MedAL', 'al_iter', 'pct_dataset_labeled'])\
-        ['val_acc'].idxmax()]
-    #  g3 = g3.groupby(['Baselines', 'al_iter', 'pct_dataset_labeled'])\
-        #  ['val_acc'].quantile(0.99).reset_index()
+    g3 = pd.concat({'patience=10 (150 epoch)': dfm10, 'patience=20 (150 epoch)': dfm20},
+                    names=['MedAL', 'junk'], sort=True).droplevel('junk')\
+        .rename({'pct_dataset_labeled': 'Percent Dataset Labeled',
+                 'val_acc': 'Max Test Accuracy', }, axis=1)\
+        .groupby(['MedAL', 'al_iter'])['Max Test Accuracy'].max()\
+        .unstack('MedAL')
+
+    # --> hack the legend
+    g2.columns = ['Online MedAL\n%s' % g2.columns[0]] + list(g2.columns[1:])
+    g3.columns = ['MedAL\n%s' % g3.columns[0]] + list(g3.columns[1:])
+
     f, ax = plt.subplots()
-    ax = sns.lineplot(
-        'Percent Dataset Labeled', 'Max Test Accuracy', hue='Online MedAL',
-        data=g2.rename({
-            'pct_dataset_labeled': 'Percent Dataset Labeled',
-            'val_acc': 'Max Test Accuracy', }, axis=1), palette='autumn_r'
-            # palette='coolwarm'
-        #  palette=sns.color_palette(['#fdae6b', 'silver']),
-        #  palette=sns.palplot(sns.color_palette("coolwarm", 9))
-        #  palette=sns.palplot(sns.color_palette("hsv", 3)),
-        #  palette='GnBu_d')
-    )
-    ax = sns.lineplot(
-        'Percent Dataset Labeled', 'Max Test Accuracy',
-        data=g3.rename({
-            'pct_dataset_labeled': 'Percent Dataset Labeled',
-            'val_acc': 'Max Test Accuracy', }, axis=1), ax=ax,
-        hue='MedAL', palette=sns.color_palette(['blue', 'lightblue']),
-        style='MedAL', dashes=[(1, 1), (2, 1)]
-        #  palette='Greens'
-    )
+    g2[[x for x in g2.columns if 'patience' not in x]]\
+        .plot(ax=ax, color=sns.color_palette('autumn_r'))
+    g2[[x for x in g2.columns if 'patience' in x]]\
+        .plot(ax=ax, color=sns.color_palette('summer_r'))
+    g3.plot(ax=ax, color=sns.color_palette(['cornflowerblue', 'darkblue']), linestyle=':')
+
+    #  ax = sns.lineplot(
+    #      'Percent Dataset Labeled', 'Max Test Accuracy', hue='Online MedAL',
+    #      data=g2.rename({
+    #          'pct_dataset_labeled': 'Percent Dataset Labeled',
+    #          'val_acc': 'Max Test Accuracy', }, axis=1), palette='autumn_r'
+    #          # palette='coolwarm'
+    #      #  palette=sns.color_palette(['#fdae6b', 'silver']),
+    #      #  palette=sns.palplot(sns.color_palette("coolwarm", 9))
+    #      #  palette=sns.palplot(sns.color_palette("hsv", 3)),
+    #      #  palette='GnBu_d')
+    #  )
+
+    #  ax = sns.lineplot(
+    #      'Percent Dataset Labeled', 'Max Test Accuracy',
+    #      data=g3.rename({
+    #          'pct_dataset_labeled': 'Percent Dataset Labeled',
+    #          'val_acc': 'Max Test Accuracy', }, axis=1), ax=ax,
+    #      hue='MedAL', palette=sns.color_palette(['blue', 'lightblue']),
+    #      style='MedAL', dashes=[(1, 1), (2, 1)]
+    #      #  palette='Greens'
+    #  )
     ax.hlines(baseline_max_acc, 0, 100, linestyle='--',
             color='dodgerblue', alpha=1, label='\nResNet18 (best accuracy)')
-    #  ax.hlines(dfm20['val_acc'].max(), 0, 100, linestyle='-.', alpha=1,
-            #  color='black', label='MedAL, patience=20\n    (best accuracy)')
-    #  ax.hlines(dfm10['val_acc'].max(), 0, 100, linestyle=':', alpha=1,
-            #  color='darkblue', label='MedAL, patience=10\n    (best accuracy)')
+
     [ax.plot(xy[1], xy[0], marker, markersize=30, color=color, alpha=1)
      for xy, color, marker in keypoints]
     [ax.plot(xy[1], xy[0], '.', markersize=15, color=color, alpha=1)
@@ -382,7 +400,7 @@ def write_keypoint_table():
         def to_int(num):
             return '%i' % num
 
-        d2['Test Accuracy'] = (
+        d2['Max Test Accuracy'] = (
             (d['val_acc'] * 100).apply(to_float2)
             + r'\% (' +
             ((d['val_acc']-baseline_max_acc)*100).apply(to_pfloat2)
