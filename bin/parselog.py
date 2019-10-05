@@ -51,6 +51,7 @@ class MedALConfig(LogType):
     _train_acc = r"train_acc:?\s+(?P<train_acc>\d+\.\d+(e-?\d+)?)\s*"
     _val_acc = r"val_acc:?\s+(?P<val_acc>\d+\.\d+(e-?\d+)?)\s*"
     _al_iter = r"(al_iter:?\s+(?P<al_iter>\d+)\s*)?"
+    _time = r"time:?\s+(?P<time>\d+\.\d+)\s*"
 
     regexes_data_shared_across_rows = [
     ]
@@ -60,7 +61,7 @@ class MedALConfig(LogType):
         # save the data from the captured group as a row and stop evaluating
         # the rest of the regexes in the list.
         (r'^' + _al_iter + _epoch + _train_loss + _val_loss + _train_acc +
-         _val_acc + '$'),
+         _val_acc + _time + '$'),
         (r'^-->\s+' + _al_iter + _epoch + _batch_idx + _train_loss + _train_acc
          + '$'),
     ]
@@ -83,6 +84,7 @@ SCHEMA = {
     'val_loss': float,
     'val_acc': float,
     'al_iter': Optional(int),
+    'time': float,
     # TODO: train_set_size, oracle_set_size, true_pos_count, true_neg_count
 }
 

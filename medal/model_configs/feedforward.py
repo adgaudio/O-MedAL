@@ -1,6 +1,7 @@
 """
 Config and functions to train and test feedforward networks using backprop
 """
+import time
 from os.path import join
 import abc
 import torch.multiprocessing as mp
@@ -73,7 +74,7 @@ def train(config):
         else:
             val_loss, val_acc = None, None
 
-        print(config.log_msg_epoch.format(**locals()))
+        print(config.log_msg_epoch.format(time=time.time(), **locals()))
 
         # early stopping
         if val_loss is not None and config.early_stopping_patience > 0:
@@ -157,7 +158,7 @@ class FeedForwardModelConfig(abc.ABC):
     log_msg_epoch = (
         "epoch {config.cur_epoch} "
         "train_loss {train_loss} val_loss {val_loss} "
-        "train_acc {train_acc} val_acc {val_acc}")
+        "train_acc {train_acc} val_acc {val_acc} time {time}")
     log_msg_minibatch = (
         "--> epoch {config.cur_epoch} batch_idx {batch_idx} "
         "train_loss {train_loss} train_acc {train_acc}")
