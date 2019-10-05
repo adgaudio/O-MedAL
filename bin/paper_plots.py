@@ -101,22 +101,21 @@ Z['val_acc_worse_than_baseline'] = Z['val_acc'] < baseline_max_acc
 # get keypoints for next couple plots
 _tmp = dfo[['val_acc', 'pct_dataset_labeled', 'num_img_patches_processed']]
 keypoints = [
-    # online experiments
-    (_tmp.loc[dfo['val_acc'].idxmax()], 'dimgray'),
-    #  (_tmp.loc[dfo.query('online_sample_frac == 0.375')['val_acc'].idxmax()],
-     #  'red'),
-    (_tmp.loc[dfo[dfo['val_acc'] >= baseline_max_acc]['pct_dataset_labeled'].idxmin()],
-    #  (_tmp.loc[dfo.query('online_sample_frac == 0.875')
-             #  .sort_values('val_acc', ascending=False)
-             #  .head(5)['pct_dataset_labeled'].idxmin()],
-     'silver'),
-    (_tmp.loc[ _tmp.loc[_tmp['val_acc'] >= baseline_max_acc]['num_img_patches_processed'].idxmin()],
-     'darkorange'),  # TODO
-    # medal
-    (dfm20.loc[dfm20['val_acc'].idxmax()].loc[['val_acc', 'pct_dataset_labeled', 'num_img_patches_processed']]\
-     .rename(('MedAL (patience=20)', '')), 'black'),
-    (dfm10.loc[dfm10['val_acc'].idxmax()].loc[['val_acc', 'pct_dataset_labeled', 'num_img_patches_processed']]\
-     .rename(('MedAL (patience=10)', '')), 'darkblue'),
+    # online most accurate
+    (_tmp.loc[_tmp['val_acc'].idxmax()], 'green', '+'),
+    # online most labeling efficient that reaches baseline acc.
+    (_tmp.loc[_tmp.query('val_acc >= @baseline_max_acc')['pct_dataset_labeled'].idxmin()], 'purple', '+'),
+    # online most computationally efficient that reaches baseline acc
+    (_tmp.loc[ _tmp.query('val_acc >= @baseline_max_acc')['num_img_patches_processed'].idxmin()], 'black', '+'),
+    # medal most accurate
+    (dfm20.loc[dfm20['val_acc'].idxmax()][['val_acc', 'pct_dataset_labeled', 'num_img_patches_processed']]\
+     .rename(('MedAL (patience=20)', '')), 'green', 'x'),
+    # medal most labeling efficient that reaches baseline acc.
+    (dfm20.loc[ dfm20.query('val_acc >= @baseline_max_acc')['pct_dataset_labeled'].idxmin()][['val_acc', 'pct_dataset_labeled', 'num_img_patches_processed']]\
+     .rename(('MedAL (patience=20)', '')), 'purple', 'x'),
+    # medal most computationally efficient that reaches baseline acc.
+    (dfm10.loc[ dfm10.query('val_acc >= @baseline_max_acc')['num_img_patches_processed'].idxmin()][['val_acc', 'pct_dataset_labeled', 'num_img_patches_processed']]\
+     .rename(('MedAL (patience=10)', '')), 'black', 'x'),
 ]
 
 # plot 1: val acc vs percent dataset labeled
@@ -170,45 +169,40 @@ def main_perf_plot(subset_experiments=(), add_medal_to_legend=False, add_baselin
     fig.tight_layout()
     fig.savefig(join(analysis_dir, 'varying_online_frac%s.png'
                                % len(subset_experiments)))
-main_perf_plot()
-main_perf_plot([
-    'Online - 0.0', 'Online - 0.125', 'Online - 0.875', 'Online - 1.0'],
-    add_medal_to_legend=True, add_baseline_to_legend=True)
+#  main_perf_plot()
+#  main_perf_plot([
+#      'Online - 0.0', 'Online - 0.125', 'Online - 0.875', 'Online - 1.0'],
+#      add_medal_to_legend=True, add_baseline_to_legend=True)
 main_perf_plot(['Online - 0.875'], add_medal_to_legend=True)
-main_perf_plot(['Online - 0.875', 'Online - 0.125'], add_medal_to_legend=True)
+#  main_perf_plot(['Online - 0.875', 'Online - 0.125'], add_medal_to_legend=True)
 
 # plot 2: training time (number of image patches used)
 # --> plot amount of data used as we change the sample frac
-def plot_training_time(logy=True, fracs=None, use_keypoints=True, dropcols=()):
+def plot_training_time(logy=True, fracs=None, use_keypoints=True, included_experiments=()):
     f, ax = plt.subplots(1, 1, figsize=(6, 4))
 
     # plot exponential curves for experiments and MedAL
     tmp = Z.set_index(['pct_dataset_labeled', 'online_sample_frac'])\
         ['num_img_patches_processed']\
-        .unstack('online_sample_frac')\
+        .unstack('online_sample_frac')
+    if included_experiments:
+        tmp = tmp[included_experiments]
+    # --> hack the legend
+    _tmp_colnames = ['p=%s' % x for x in tmp.columns]
+    _tmp_colnames[0] = 'Online Medal\n%s' % _tmp_colnames[0]
+    tmp.columns = _tmp_colnames
+    tmp.plot(ax=ax, logy=logy, legend=False, color=sns.color_palette('autumn_r'))
+    tmp = tmp\
         .join(dfm20.groupby('pct_dataset_labeled')['num_img_patches_processed']
-              .max().rename('MedAL (patience=20)'), how='outer')\
+              .max().rename('MedAL\npatience=20'), how='outer')\
         .join(dfm10.groupby('pct_dataset_labeled')['num_img_patches_processed']
-              .max().rename('MedAL (patience=10)'), how='outer')
-    if dropcols:
-        tmp = tmp.drop(dropcols, axis=1)
-        color_dict = {0.125: '#fdae6b', 0.875: 'silver'}
-        tmp\
-            .drop('MedAL (patience=20)', axis=1)\
-            .drop('MedAL (patience=10)', axis=1)\
-            .plot(ax=ax, logy=logy, legend=False,
-                  color=[color_dict.get(x, '#333333') for x in tmp.columns])
-    else:  # ugly hack for colors to match up
-        tmp\
-            .drop('MedAL (patience=20)', axis=1)\
-            .drop('MedAL (patience=10)', axis=1)\
-            .plot(ax=ax, logy=logy, legend=False)
-    tmp['MedAL (patience=20)'].plot(ax=ax, style='-.', logy=logy, color='black', legend=False)
-    tmp['MedAL (patience=10)'].plot(ax=ax, style=':', logy=logy, color='darkblue', legend=False)
+              .max().rename('patience=10'), how='outer')
+    tmp['MedAL\npatience=20'].plot(ax=ax, style='-.', logy=logy, color='lightblue', legend=False)
+    tmp['patience=10'].plot(ax=ax, style=':', logy=logy, color='blue', legend=False)
 
     # plot baseline horizontal line
     ax.hlines(baseline_num_processed, 0, 100,
-              color='dodgerblue', linestyle='--', label='Baseline ResNet')
+              color='dodgerblue', linestyle='--', label='\nResNet18 (at best accuracy)')
 
     # plot dots for highest val acc above and below baseline line.
     if fracs == 'all':
@@ -244,15 +238,15 @@ def plot_training_time(logy=True, fracs=None, use_keypoints=True, dropcols=()):
             ax=ax, c='black', s=(norm(points['val_acc'].values)*200)[-1]
         )
     if use_keypoints:
-        [ax.plot(xy[1], xy[2], marker, markersize=ms,
-                 color=color if color2 is None else color2, alpha=1)
-         for xy, color in keypoints
-         for marker, ms, color2 in [('P', 25, None), ('+', 35, 'white')]]
+        [ax.plot(xy[1], xy[2], marker, markersize=30, color=color, alpha=1)
+         for xy, color, marker in keypoints]
+        [ax.plot(xy[1], xy[2], '.', markersize=15, color=color, alpha=1)
+        for xy, color, _ in keypoints]
 
     ax.set_ylabel('Number of Examples Processed%s'
                   % (' (log scale)' if logy else ''))
     ax.set_xlabel('Percent Dataset Labeled')
-    if dropcols:
+    if included_experiments:
         ax.legend(ncol=2)
     else:
         ax.legend(ncol=3)
@@ -264,15 +258,16 @@ def plot_training_time(logy=True, fracs=None, use_keypoints=True, dropcols=()):
         analysis_dir,
         'num_img_patches_processed%s%s%s%s.png'
         % (("_logy" if logy else ""), len(points),
-           '_kp' if use_keypoints else '', 'dc%s' % len(dropcols))))
+           '_kp' if use_keypoints else '', 'dc%s' % len(included_experiments))))
 
-plot_training_time(logy=False, fracs=None, use_keypoints=False)
-plot_training_time(logy=True, fracs=[], use_keypoints=False)
-plot_training_time(logy=True, fracs=[], use_keypoints=False)
-plot_training_time(logy=True, fracs=[], use_keypoints=True)
-plot_training_time(logy=True, fracs='all', use_keypoints=False)
-# this is the one used in paper:
-plot_training_time(logy=True, fracs=[], use_keypoints=True, dropcols=[0, .25, .5, .625, .75, 1])
+#  plot_training_time(logy=False, fracs=None, use_keypoints=False)
+#  plot_training_time(logy=True, fracs=[], use_keypoints=False)
+#  plot_training_time(logy=True, fracs=[], use_keypoints=False)
+#  plot_training_time(logy=True, fracs=[], use_keypoints=True)
+#  plot_training_time(logy=True, fracs='all', use_keypoints=False)
+#  # this is the one used in paper:
+plot_training_time(logy=True, fracs=[], use_keypoints=True,
+                   included_experiments=[0.125, 0.375, 0.875, 1])
 
 # latex table of val accs above and below baseline.
 with open(join(analysis_dir, 'table.tex'), 'w') as fout:
@@ -290,171 +285,162 @@ with open(join(analysis_dir, 'table.tex'), 'w') as fout:
 
 
 # plot 3: best performing model
-topn = 100000
-g = dfo.groupby('Experiment')\
-    .apply(lambda x: x.sort_values(['val_acc', 'pct_dataset_labeled'],
-                                   ascending=False).head(topn))\
-    .sort_values('online_sample_frac')\
-    [['val_acc', 'pct_dataset_labeled', 'al_iter', 'online_sample_frac']]\
-    .droplevel(0).droplevel('log_line_num').reset_index()
-f, ax = plt.subplots(1, 1, figsize=(6, 4))
-# --> add jitter
-x_jitter = g['val_acc'].value_counts().index.to_series()\
-    .sort_values().diff().min() / 6
-y_jitter = g['pct_dataset_labeled'].value_counts().index.to_series()\
-    .sort_values().diff().min() / 6
-g['val_acc'] += x_jitter * (np.random.randint(-1, 1, g.shape[0])*2+1)
-g['pct_dataset_labeled'] += \
-    y_jitter * (np.random.randint(-1, 1, g.shape[0])*2+1)
-# --> make scatter plot
-#  sns.scatterplot(
-#      'Percent Dataset Labeled', 'Test Accuracy', hue='Experiment',
-#      data=g[g['Experiment'].isin(['Online - 0.375'])].rename({
-#          'pct_dataset_labeled': 'Percent Dataset Labeled',
-#          'val_acc': 'Test Accuracy', }, axis=1), ax=ax,
-#      palette=sns.color_palette(['#1dae6b']))
-# --> remove some experiments from the scatter plot for clarity.
-g = g[g['Experiment'].isin([
-    'Online - 0.125', 'Online - 0.875',])]
-sns.scatterplot(
-    'Percent Dataset Labeled', 'Test Accuracy', hue='Experiment',
-    data=g.rename({
-        'pct_dataset_labeled': 'Percent Dataset Labeled',
-        'val_acc': 'Test Accuracy', }, axis=1), ax=ax,
-    palette=sns.color_palette(['#fdae6b', 'silver']),
-    #  palette=sns.palplot(sns.color_palette("coolwarm", 9))
-    #  palette=sns.palplot(sns.color_palette("hsv", 3)),
-    #  palette='GnBu_d')
-)
-ax.hlines(baseline_max_acc, 0, 100, linestyle='--',
-          color='dodgerblue', alpha=1, label='ResNet18 (best accuracy)')
-ax.hlines(dfm20['val_acc'].max(), 0, 100, linestyle='-.', alpha=1,
-          color='black', label='MedAL, patience=20\n    (best accuracy)')
-ax.hlines(dfm10['val_acc'].max(), 0, 100, linestyle=':', alpha=1,
-          color='darkblue', label='MedAL, patience=10\n    (best accuracy)')
+def plot_accuracy():
+    cols = ['val_acc', 'pct_dataset_labeled', 'al_iter', 'epoch']
 
-# --> hide the "Experiment" column since it's redundant and reorder legend
-#  h,l = ax.get_legend_handles_labels()
-#  assert 'Experiment' in l[2]
-#  l[1], l[2], l[3] = l[4], l[3], l[1]
-#  h[1], h[2], h[3] = h[4], h[3], h[1]
-#  del l[4]
-#  del h[4]
-#  legend = ax.legend(labels=l, handles=h, framealpha=.8, frameon=True, bbox_to_anchor=(0, .34), loc='center left', ncol=2)
-legend = ax.legend(framealpha=.8, frameon=True, bbox_to_anchor=(0, .3), loc='center left', ncol=2)
-if topn >= 100000:
-    ax.set_title("Test Accuracies For Each Experiment")
-else:
-    ax.set_title("Top %s Highest Test Accuracies For Each Experiment" % topn)
-# add annotations to key points of interest on plot
-with open(join(analysis_dir, 'topn_keypoint_table.tex'), 'w') as fout:
-    print("\n\n  ---  keypoint table  ---")
-    d = pd.DataFrame([x[0] for x in keypoints])
-    d.index = pd.MultiIndex.from_tuples(d.index)
-    d = d.reset_index(level=1, drop=True)
-    d.index.name = 'Experiment'
-    d = d.append(pd.Series([baseline_max_acc, 100, baseline_num_processed],
-                       index=d.columns, name='ResNet18 Baseline'))
+    _medal10 = dfm10[cols].copy()
+    _medal20 = dfm20[cols].copy()
+    _medal10['MedAL'] = 'patience=10'
+    _medal20['MedAL'] = 'patience=20'
+    included_experiments = [0.125, 0.375, 0.875, 1]
+    g2 = dfo.query('online_sample_frac in @included_experiments')[cols]\
+        .droplevel('log_line_num').reset_index()\
+        .rename(columns={'Experiment': 'Online MedAL'})
+    # --> show last epoch of each al iteration.
+    g2 = g2.loc[g2.groupby(['Online MedAL', 'al_iter', 'pct_dataset_labeled'])\
+        ['val_acc'].idxmax()]
+    g2['Online MedAL'] = g2['Online MedAL'].str.replace('Online - ', 'p=')
+    #  g2 = g2.groupby(['Online MedAL', 'al_iter', 'pct_dataset_labeled'])\
+        #  ['val_acc'].quantile(0.99).reset_index()
 
-    d2 = pd.DataFrame(index=d.index)
-    def to_float2(num):
-        return '%0.2f' % num
-    def to_pfloat2(num):
-        return '%+0.2f' % num
-    def to_int(num):
-        return '%i' % num
-
-    d2['Test Accuracy'] = (
-        (d['val_acc'] * 100).apply(to_float2)
-        + r'\% (' +
-        ((d['val_acc']-baseline_max_acc)*100).apply(to_pfloat2)
-        + r'\%)')
-    d2['Percent Labeled'] = d['pct_dataset_labeled'].apply(to_float2) + r'\%'
-    d2['Examples Processed'] = (
-        d['num_img_patches_processed'].apply(to_int)
-        + r' (' +
-        ((d['num_img_patches_processed'] - baseline_num_processed) *100 / baseline_num_processed).apply(lambda x: '%+0.2f' % x)
-        + r'\%)'
+    g3 = pd.concat([_medal10, _medal20], ignore_index=True)
+    g3 = g3.loc[g3.groupby(['MedAL', 'al_iter', 'pct_dataset_labeled'])\
+        ['val_acc'].idxmax()]
+    #  g3 = g3.groupby(['Baselines', 'al_iter', 'pct_dataset_labeled'])\
+        #  ['val_acc'].quantile(0.99).reset_index()
+    f, ax = plt.subplots()
+    ax = sns.lineplot(
+        'Percent Dataset Labeled', 'Max Test Accuracy', hue='Online MedAL',
+        data=g2.rename({
+            'pct_dataset_labeled': 'Percent Dataset Labeled',
+            'val_acc': 'Max Test Accuracy', }, axis=1), palette='autumn_r'
+            # palette='coolwarm'
+        #  palette=sns.color_palette(['#fdae6b', 'silver']),
+        #  palette=sns.palplot(sns.color_palette("coolwarm", 9))
+        #  palette=sns.palplot(sns.color_palette("hsv", 3)),
+        #  palette='GnBu_d')
     )
-    def bold_if_startswith(expected_prefix):
-        def _bold(strng):
-            if strng.startswith(expected_prefix):
-                return r'\textbf{%s}' % strng
-            else:
-                return strng
-        return _bold
+    ax = sns.lineplot(
+        'Percent Dataset Labeled', 'Max Test Accuracy',
+        data=g3.rename({
+            'pct_dataset_labeled': 'Percent Dataset Labeled',
+            'val_acc': 'Max Test Accuracy', }, axis=1), ax=ax,
+        hue='MedAL', palette=sns.color_palette(['blue', 'lightblue']),
+        style='MedAL', dashes=[(1, 1), (2, 1)]
+        #  palette='Greens'
+    )
+    ax.hlines(baseline_max_acc, 0, 100, linestyle='--',
+            color='dodgerblue', alpha=1, label='\nResNet18 (best accuracy)')
+    #  ax.hlines(dfm20['val_acc'].max(), 0, 100, linestyle='-.', alpha=1,
+            #  color='black', label='MedAL, patience=20\n    (best accuracy)')
+    #  ax.hlines(dfm10['val_acc'].max(), 0, 100, linestyle=':', alpha=1,
+            #  color='darkblue', label='MedAL, patience=10\n    (best accuracy)')
+    [ax.plot(xy[1], xy[0], marker, markersize=30, color=color, alpha=1)
+     for xy, color, marker in keypoints]
+    [ax.plot(xy[1], xy[0], '.', markersize=15, color=color, alpha=1)
+     for xy, color, _ in keypoints]
+    ax.legend(ncol=1)
 
-    to_latex_formatters = {
-        'Examples Processed': bold_if_startswith(to_int(
-            d['num_img_patches_processed'].min())),
-        'Test Accuracy': bold_if_startswith(to_float2(
-            d['val_acc'].max()*100)),
-        'Percent Labeled': bold_if_startswith(to_float2(
-            d['pct_dataset_labeled'].min()))
+    #  topn = 1
+    #  g = dfo.groupby('Experiment')\
+        #  .apply(lambda x: x.sort_values(['val_acc', 'pct_dataset_labeled'],
+                                    #  ascending=False).head(topn))\
+        #  .sort_values('online_sample_frac')\
+        #  [['val_acc', 'pct_dataset_labeled', 'al_iter', 'online_sample_frac']]\
+        #  .droplevel(0).droplevel('log_line_num').reset_index()
+    #  sns.scatterplot(
+        #  'Percent Dataset Labeled', 'Test Accuracy', hue='Experiment',
+        #  data=g.rename({
+            #  'pct_dataset_labeled': 'Percent Dataset Labeled',
+            #  'val_acc': 'Test Accuracy', }, axis=1), ax=ax
+        #  palette=sns.color_palette(['#fdae6b', 'silver']),
+        #  palette=sns.palplot(sns.color_palette("coolwarm", 9))
+        #  palette=sns.palplot(sns.color_palette("hsv", 3)),
+        #  palette='GnBu_d')
+    #  )
+    f.savefig(join(analysis_dir, 'val_accs.png'))
+
+plot_accuracy()
+
+
+def write_keypoint_table():
+    # add annotations to key points of interest on plot
+    with open(join(analysis_dir, 'topn_keypoint_table.tex'), 'w') as fout:
+        print("\n\n  ---  keypoint table  ---")
+        d = pd.DataFrame([x[0] for x in keypoints])
+        d.index = pd.MultiIndex.from_tuples(d.index)
+        d = d.reset_index(level=1, drop=True)
+        d.index.name = 'Experiment'
+        d = d.append(pd.Series([baseline_max_acc, 100, baseline_num_processed],
+                        index=d.columns, name='ResNet18 Baseline'))
+
+        d2 = pd.DataFrame(index=d.index)
+        def to_float2(num):
+            return '%0.2f' % num
+        def to_pfloat2(num):
+            return '%+0.2f' % num
+        def to_int(num):
+            return '%i' % num
+
+        d2['Test Accuracy'] = (
+            (d['val_acc'] * 100).apply(to_float2)
+            + r'\% (' +
+            ((d['val_acc']-baseline_max_acc)*100).apply(to_pfloat2)
+            + r'\%)')
+        d2['Percent Labeled'] = d['pct_dataset_labeled'].apply(to_float2) + r'\%'
+        d2['Examples Processed'] = (
+            d['num_img_patches_processed'].apply(to_int)
+            + r' (' +
+            ((d['num_img_patches_processed'] - baseline_num_processed) *100 / baseline_num_processed).apply(lambda x: '%+0.2f' % x)
+            + r'\%)'
+        )
+        def bold_if_startswith(expected_prefix):
+            def _bold(strng):
+                if strng.startswith(expected_prefix):
+                    return r'\textbf{%s}' % strng
+                else:
+                    return strng
+            return _bold
+
+        to_latex_formatters = {
+            'Examples Processed': bold_if_startswith(to_int(
+                d['num_img_patches_processed'].min())),
+            'Test Accuracy': bold_if_startswith(to_float2(
+                d['val_acc'].max()*100)),
+            'Percent Labeled': bold_if_startswith(to_float2(
+                d['pct_dataset_labeled'].min()))
+        }
+
+        fout.write(d2.reset_index().to_latex(formatters=to_latex_formatters, escape=False, index=False))
+        print(d2.reset_index().to_latex(formatters=to_latex_formatters, escape=False, index=False))
+        print(d.to_string())
+write_keypoint_table()
+
+
+
+
+def plot_baseline_resnet_vs_inception():
+    dfbb = {
+        "ResNet18": "data/_analysis/R6-20190315T030959.log/logdata.csv",
+        "InceptionV3": "data/_analysis/A6e-20190222T103123.log/logdata.csv",
     }
+    dfbb = pd.concat({k: pd.read_csv(v) for k, v in dfbb.items()}, sort=False)\
+        .query('perf and al_iter == 0 and epoch <= 150')\
+        .droplevel(1).set_index('epoch', append=True).unstack(level=0)
 
-    fout.write(d2.reset_index().to_latex(formatters=to_latex_formatters, escape=False, index=False))
-    print(d2.reset_index().to_latex(formatters=to_latex_formatters, escape=False, index=False))
-    print(d.to_string())
+    ax = dfbb['val_acc'].plot()
+    ax.legend(loc='center right')
+    table = pd.plotting.table(
+        ax, dfbb['val_acc'].describe().round(4).loc[['max', 'min']],
+        loc='lower center', colWidths=[0.3, 0.3, 0.3], alpha=1)
+    table.auto_set_font_size(False)
 
-[ax.plot(xy[1], xy[0], marker, markersize=ms,
-         color=color if color2 is None else color2, alpha=1)
- for xy, color in keypoints
- for marker, ms, color2 in [('P', 25, None), ('+', 35, 'white')]]
-#  [ax.add_patch(patches.Ellipse([xy[0], xy[1]], 0.0075, 6, facecolor='none',
-                              #  linewidth=15, alpha=.8, edgecolor=color, lw=4))
- #  for xy, color in keypoints]
-
-f.savefig(join(analysis_dir, 'topn_best_val_accs_per_experiment.png'))
-
-# useless bar plot
-#  _bpm1 = dfo[['val_acc']]\
-#      .unstack('Experiment').max().rename('val_acc').to_frame().T.droplevel(0, axis=1)\
-#      .join(dfm20[['val_acc']].max().rename('MedAL (patience=20)'))\
-#      .join(dfb[['val_acc']].max().rename('ResNet18'))\
-#      .T
-#  _bpm2 = dfo[['pct_dataset_labeled']]\
-#      .unstack('Experiment').max().rename('pct_dataset_labeled').to_frame().T.droplevel(0, axis=1)\
-#      .join(dfm20[['pct_dataset_labeled']].max().rename('MedAL (patience=20)'))\
-#      .join(pd.Series({'pct_dataset_labeled': 100.0}, name='ResNet18'))\
-#      .T
-#  bpm = pd.concat([_bpm1, _bpm2], axis=1)
-
-#  f, (ax1, ax2) = plt.subplots(2, 1)
-#  bpm.drop('pct_dataset_labeled', axis=1).plot.bar(legend=False, ax=ax1, rot=30, ylim=(.6, 1))
-#  ax2.table(
-#      cellText=bpm.round(4).sort_values('val_acc', ascending=False)\
-#      .reset_index().values,
-#      colLabels=['Model', 'Best Test Acc', 'Percent dataset labeled'],
-#      loc='center')
-#  ax2.axis('tight')
-#  ax2.axis('off')
-#  f.tight_layout()
-#  f.subplots_adjust(top=0.92, hspace=.55)
-#  f.suptitle("Best Test Accuracy")
-#  f.savefig(join(analysis_dir, 'best_model_val_acc.png'))
-
-
-dfbb = {
-    "ResNet18": "data/_analysis/R6-20190315T030959.log/logdata.csv",
-    "InceptionV3": "data/_analysis/A6e-20190222T103123.log/logdata.csv",
-}
-dfbb = pd.concat({k: pd.read_csv(v) for k, v in dfbb.items()}, sort=False)\
-    .query('perf and al_iter == 0 and epoch <= 150')\
-    .droplevel(1).set_index('epoch', append=True).unstack(level=0)
-
-ax = dfbb['val_acc'].plot()
-ax.legend(loc='center right')
-table = pd.plotting.table(
-    ax, dfbb['val_acc'].describe().round(4).loc[['max', 'min']],
-    loc='lower center', colWidths=[0.3, 0.3, 0.3], alpha=1)
-table.auto_set_font_size(False)
-
-ax.set_xlabel('Epoch')
-ax.set_ylabel('Test Accuracy')
-f = ax.figure
-f.suptitle("Test Accuracy vs Epoch")
-#  f.tight_layout(rect=[0, 0.03, 1, 0.95])
-f.savefig(join(analysis_dir, "baselines_acc_vs_epoch.png"))
+    ax.set_xlabel('Epoch')
+    ax.set_ylabel('Test Accuracy')
+    f = ax.figure
+    f.suptitle("Test Accuracy vs Epoch")
+    #  f.tight_layout(rect=[0, 0.03, 1, 0.95])
+    f.savefig(join(analysis_dir, "baselines_acc_vs_epoch.png"))
+#  plot_baseline_resnet_vs_inception()
 
 import IPython ; IPython.embed() ; import sys ; sys.exit()
