@@ -153,7 +153,7 @@ class FeedForwardModelConfig(abc.ABC):
 
     early_stopping_patience = 0  # early stopping, disabled by default
 
-    data_loader_num_workers = max(1, mp.cpu_count()//2 - 1)
+    data_loader_num_workers = max(1, mp.cpu_count() - 1)
     log_msg_epoch = (
         "epoch {config.cur_epoch} "
         "train_loss {train_loss} val_loss {val_loss} "
