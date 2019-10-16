@@ -39,10 +39,24 @@ fps_varying_online_frac = [  # stored in dfo
     #  "data/_analysis/RMO6-100d-20190323T082726.log/logdata.csv",
 ]
 fps_omedal_patience = {
-    "p=0.875, 20 epoch": "data/_analysis/RMO6-87.5-20epoch-20191005T215029.log/logdata.csv",
+    #  "p=0.875, 20 epoch": "data/_analysis/RMO6-87.5-20epoch-20191005T215029.log/logdata.csv",
     "p=0.875, patience=05": "data/_analysis/RMO6-87.5-5patience-20191005T215029.log/logdata.csv",
     "p=0.875, patience=10": "data/_analysis/RMO6-87.5-10patience-20191006T004721.log/logdata.csv",
     "p=0.875, patience=20": "data/_analysis/RMO6-87.5-20patience-20191006T133459.log/logdata.csv",
+
+    "p=0.125, patience=05": "data/_analysis/RMO6-12.5-5patience-20191007T054951.log/logdata.csv",
+    #  "p=0.125, patience=10": "data/_analysis/RMO6-12.5-10patience-20191007T054951.log/logdata.csv",
+    #  "p=0.125, patience=20": "data/_analysis/RMO6-12.5-20patience-20191007T020901.log/logdata.csv",
+    #  'p=0.125, patience=05b': 'data/_analysis/RMO6-12.5-5patienceb-20191009T184359.log/logdata.csv',
+    #  'p=0.125, patience=05c': 'data/_analysis/RMO6-12.5-5patiencec-20191009T184359.log/logdata.csv',
+
+   #  "p=0.875, patience=05b": "data/_analysis/RMO6-87.5-5patience-b-20191009T221911.log/logdata.csv",
+   #  "p=0.875, patience=05c": "data/_analysis/RMO6-87.5-5patience-c-20191009T221911.log/logdata.csv",
+   #  "p=0.875, patience=30": "data/_analysis/RMO6-87.5-30patience-20191010T141916.log/logdata.csv",
+   #  "p=0.875, patience=40": "data/_analysis/RMO6-87.5-40patience-20191010T005839.log/logdata.csv",
+
+   #  "p=0.125, vpf9": "data/_analysis/RMO6-12.5-vpf9-20191010T020718.log/logdata.csv",
+   #  "p=0.125, patience=05 vpf9": "data/_analysis/RMO6-12.5-5patience-vpf9-20191010T022128.log/logdata.csv",
 }
 
 
@@ -131,7 +145,7 @@ Z['val_acc_worse_than_baseline'] = Z['val_acc'] < baseline_max_acc
 _tmp = dfo[['val_acc', 'pct_dataset_labeled', 'num_img_patches_processed']]
 keypoints = [
     # online most accurate
-    (_tmp.loc[_tmp['val_acc'].idxmax()], 'green', '+'),
+    (_tmp.loc[_tmp.sort_values('pct_dataset_labeled')['val_acc'].idxmax()], 'green', '+'),
     # online most labeling efficient that reaches baseline acc.
     (_tmp.loc[_tmp.query('val_acc >= @baseline_max_acc')['pct_dataset_labeled'].idxmin()], 'purple', '+'),
     # online most computationally efficient that reaches baseline acc
@@ -143,8 +157,10 @@ keypoints = [
     (dfm20.loc[ dfm20.query('val_acc >= @baseline_max_acc')['pct_dataset_labeled'].idxmin()][['val_acc', 'pct_dataset_labeled', 'num_img_patches_processed']]\
      .rename(('MedAL (patience=20)', '')), 'purple', 'x'),
     # medal most computationally efficient that reaches baseline acc.
-    (dfm10.loc[ dfm10.query('val_acc >= @baseline_max_acc')['num_img_patches_processed'].idxmin()][['val_acc', 'pct_dataset_labeled', 'num_img_patches_processed']]\
-     .rename(('MedAL (patience=10)', '')), 'black', 'x'),
+    #  (dfm10.loc[ dfm10.query('val_acc >= @baseline_max_acc')['num_img_patches_processed'].idxmin()][['val_acc', 'pct_dataset_labeled', 'num_img_patches_processed']]\
+     #  .rename(('MedAL (patience=10)', '')), 'black', 'x'),
+    (dfm20.loc[ dfm20.query('val_acc >= @baseline_max_acc')['num_img_patches_processed'].idxmin()][['val_acc', 'pct_dataset_labeled', 'num_img_patches_processed']]\
+     .rename(('MedAL (patience=20)', '')), 'indigo', 'x'),
 ]
 
 # plot 1: val acc vs percent dataset labeled
@@ -155,39 +171,33 @@ def main_perf_plot():
     medalpltdata = dfm20\
         .set_index(['pct_dataset_labeled_int', 'epoch'])['val_acc']\
         .rename('MedAL (patience=20)')
-    onlinepltdata = dfo.query('Experiment == "p=0.875, patience=20"')\
+    onlinepltdata = dfo.query('Experiment == "p=0.875, patience=10"')\
         .set_index(['pct_dataset_labeled_int', 'epoch'])['val_acc']\
-        .rename('Online MedAL (p=0.875, patience=20)')\
+        .rename('Online MedAL (p=0.875, patience=10)')\
         .reindex(medalpltdata.index)
 
     # --> add the plots
     fig, ax = plt.subplots(1, 1, figsize=(8, 2))
-    axs = onlinepltdata\
-        .plot(ylim=(0, 1), color='red', subplots=True, ax=ax)
     if add_medal_to_legend:
-        [medalpltdata.plot(ax=ax, alpha=.6, color='green', linewidth=0.4)
-         for ax in axs]
+        medalpltdata.plot(ax=ax, alpha=.6, color='green', linewidth=0.4)
     else:
-        [medalpltdata.plot(ax=ax, alpha=.6, color='green', linewidth=0.4,
+        medalpltdata.plot(ax=ax, alpha=.6, color='green', linewidth=0.4,
                            label='_nolegend_')
-         for ax in axs]
+    onlinepltdata.plot(ylim=(0, 1), color='red', subplots=True, ax=ax, linewidth=.4)
     if add_baseline_to_legend:
-        [ax.hlines(baseline_max_acc, 0, medalpltdata.shape[0],
+        ax.hlines(baseline_max_acc, 0, medalpltdata.shape[0],
                 color='dodgerblue', linestyle='--', label='ResNet18 (max accuracy)')
-         for ax in axs]
     else:
-        [ax.hlines(baseline_max_acc, 0, medalpltdata.shape[0],
+        ax.hlines(baseline_max_acc, 0, medalpltdata.shape[0],
                 color='dodgerblue', linestyle='--', label='_nolegend_')
-         for ax in axs]
-    [ax.legend(loc='lower left', frameon=True, ncol=2)
-     for ax in axs]
+    ax.legend(loc='lower left', frameon=True, ncol=2)
     # --> handle xticks.
-    [ax.set_xlabel('Percent Dataset Labeled') for ax in axs]
+    ax.set_xlabel('Percent Dataset Labeled')
     #  axs[-1].set_xlabel('Percent Dataset Labeled')
-    [ax.set_ylabel('Test Accuracy') for ax in axs]
+    ax.set_ylabel('Test Accuracy')
     #  axs[len(axs)//2].set_ylabel('Test Accuracy')
-    axs[0].xaxis.set_major_locator(mticker.LinearLocator(10))
-    axs[0].xaxis.set_major_formatter(
+    ax.xaxis.set_major_locator(mticker.LinearLocator(10))
+    ax.xaxis.set_major_formatter(
         mticker.FuncFormatter(lambda x, pos: min(100, medalpltdata.index[int(x)][0])))
     fig.tight_layout()
     fig.savefig(join(analysis_dir, 'varying_online_frac.png'))
@@ -256,9 +266,9 @@ def plot_training_time(logy=True, fracs=None, use_keypoints=True, included_exper
             ax=ax, c='black', s=(norm(points['val_acc'].values)*200)[-1]
         )
     if use_keypoints:
-        [ax.plot(xy[1], xy[2], marker, markersize=30, color=color, alpha=1)
+        [ax.plot(xy[1], xy[2], marker, markersize=25, color=color, alpha=1)
          for xy, color, marker in keypoints]
-        [ax.plot(xy[1], xy[2], '.', markersize=15, color=color, alpha=1)
+        [ax.plot(xy[1], xy[2], '.', markersize=10, color=color, alpha=1)
         for xy, color, _ in keypoints]
 
     ax.set_ylabel('Number of Examples Processed%s'
@@ -306,16 +316,12 @@ def plot_accuracy():
     g2 = dfo\
         .droplevel('log_line_num')\
         .rename_axis(index={'Experiment': 'Online MedAL'})\
-        .rename({'pct_dataset_labeled': 'Percent Dataset Labeled',
-                 'val_acc': 'Max Test Accuracy', }, axis=1)\
-        .groupby(['Online MedAL', 'al_iter'])['Max Test Accuracy'].max()\
+        .groupby(['Online MedAL', 'pct_dataset_labeled'])['val_acc'].max()\
         .unstack('Online MedAL')
 
     g3 = pd.concat({'patience=10 (150 epoch)': dfm10, 'patience=20 (150 epoch)': dfm20},
                     names=['MedAL', 'junk'], sort=True).droplevel('junk')\
-        .rename({'pct_dataset_labeled': 'Percent Dataset Labeled',
-                 'val_acc': 'Max Test Accuracy', }, axis=1)\
-        .groupby(['MedAL', 'al_iter'])['Max Test Accuracy'].max()\
+        .groupby(['MedAL', 'pct_dataset_labeled'])['val_acc'].max()\
         .unstack('MedAL')
 
     # --> hack the legend
@@ -353,12 +359,15 @@ def plot_accuracy():
     ax.hlines(baseline_max_acc, 0, 100, linestyle='--',
             color='dodgerblue', alpha=1, label='\nResNet18 (best accuracy)')
 
-    [ax.plot(xy[1], xy[0], marker, markersize=30, color=color, alpha=1)
-     for xy, color, marker in keypoints]
-    [ax.plot(xy[1], xy[0], '.', markersize=15, color=color, alpha=1)
-     for xy, color, _ in keypoints]
-    ax.legend(ncol=1)
+    # keypoints
+    [ax.plot(xy[1], xy[0], marker, markersize=25, color=color, alpha=1)
+        for xy, color, marker in keypoints]
+    [ax.plot(xy[1], xy[0], '.', markersize=10, color=color, alpha=1)
+    for xy, color, _ in keypoints]
 
+    ax.legend(ncol=1)
+    ax.set_ylabel("Max Test Accuracy")
+    ax.set_xlabel("Percent Dataset Labeled")
     #  topn = 1
     #  g = dfo.groupby('Experiment')\
         #  .apply(lambda x: x.sort_values(['val_acc', 'pct_dataset_labeled'],
@@ -461,4 +470,5 @@ def plot_baseline_resnet_vs_inception():
     f.savefig(join(analysis_dir, "baselines_acc_vs_epoch.png"))
 #  plot_baseline_resnet_vs_inception()
 
-import IPython ; IPython.embed() ; import sys ; sys.exit()
+#  import IPython ; IPython.embed() ; import sys ; sys.exit()
+plt.show()

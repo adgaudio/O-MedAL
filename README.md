@@ -2,7 +2,7 @@
 
 Code for the paper, written with pytorch.
 
-![poster](./omedal_cmu_portugal_poster.pdf)
+![paper on arXiv](https://arxiv.org/abs/1908.10508)
 
 
 ## Setup

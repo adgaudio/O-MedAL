@@ -52,4 +52,11 @@ wait
 (ri=RMO6-87.5-20patience ; run_cmd_and_log $ri "python -m medal OnlineMedalResnet18BinaryClassifier --run-id $ri --learning-rate 0.003 --epochs 150 --early-stopping-patience 20 --online-sample-frac 0.875 --device cuda:0 ") &
 wait
 
+
+# performance for p=12.5 with patience
+(ri=RMO6-12.5-20patience ; run_cmd_and_log $ri "python -m medal OnlineMedalResnet18BinaryClassifier --run-id $ri --learning-rate 0.003 --epochs 150 --online-sample-frac 0.125 --early-stopping-patience 20 --device cuda:1") &
+wait
+(ri=RMO6-12.5-10patience ; run_cmd_and_log $ri "python -m medal OnlineMedalResnet18BinaryClassifier --run-id $ri --learning-rate 0.003 --epochs 150 --online-sample-frac 0.125 --early-stopping-patience 10 --device cuda:0") &
+(ri=RMO6-12.5-5patience ; run_cmd_and_log $ri "python -m medal OnlineMedalResnet18BinaryClassifier --run-id $ri --learning-rate 0.003 --epochs 150 --online-sample-frac 0.125 --early-stopping-patience 5 --device cuda:1") &
+wait
 # TODO: 20 epoch, some patience
