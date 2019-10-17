@@ -200,7 +200,7 @@ def main_perf_plot():
     ax.xaxis.set_major_formatter(
         mticker.FuncFormatter(lambda x, pos: min(100, medalpltdata.index[int(x)][0])))
     fig.tight_layout()
-    fig.savefig(join(analysis_dir, 'varying_online_frac.png'))
+    fig.savefig(join(analysis_dir, 'varying_online_frac.eps'))
 main_perf_plot()
 
 # plot 2: training time (number of image patches used)
@@ -281,7 +281,7 @@ def plot_training_time(logy=True, fracs=None, use_keypoints=True, included_exper
 
     f.savefig(join(
         analysis_dir,
-        'num_img_patches_processed%s%s%s%s.png'
+        'num_img_patches_processed%s%s%s%s.eps'
         % (("_logy" if logy else ""), len(points),
            '_kp' if use_keypoints else '', 'dc%s' % len(included_experiments))))
 
@@ -385,7 +385,7 @@ def plot_accuracy():
         #  palette=sns.palplot(sns.color_palette("hsv", 3)),
         #  palette='GnBu_d')
     #  )
-    f.savefig(join(analysis_dir, 'val_accs.png'))
+    f.savefig(join(analysis_dir, 'val_accs.eps'))
 
 plot_accuracy()
 
@@ -467,7 +467,7 @@ def plot_baseline_resnet_vs_inception():
     f = ax.figure
     f.suptitle("Test Accuracy vs Epoch")
     #  f.tight_layout(rect=[0, 0.03, 1, 0.95])
-    f.savefig(join(analysis_dir, "baselines_acc_vs_epoch.png"))
+    f.savefig(join(analysis_dir, "baselines_acc_vs_epoch.eps"))
 #  plot_baseline_resnet_vs_inception()
 
 #  import IPython ; IPython.embed() ; import sys ; sys.exit()
