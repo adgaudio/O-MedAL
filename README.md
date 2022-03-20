@@ -2,7 +2,9 @@
 
 Code for the paper, written with pytorch.
 
-![paper on arXiv](https://arxiv.org/abs/1908.10508)
+[on arXiv](https://arxiv.org/abs/1908.10508)
+
+[on Wiley Journal of Data Mining and Knowledge Discovery](https://wires.onlinelibrary.wiley.com/doi/abs/10.1002/widm.1353)
 
 
 ## Setup
